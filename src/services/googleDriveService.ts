@@ -1,9 +1,11 @@
-import { getGoogleAccessToken } from '../config/googleAuth';
+import { getGoogleAccessToken } from '../config/firebase';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 
 async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  const token = await getGoogleAccessToken();
+  const token = getGoogleAccessToken();
+  if (!token) throw new Error('Not authenticated: missing Google OAuth access token');
+
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('Content-Type', 'application/json');
@@ -43,11 +45,6 @@ export async function createPermission(
 export async function deletePermission(fileId: string, permissionId: string): Promise<void> {
   const url = `${DRIVE_API_BASE}/files/${fileId}/permissions/${permissionId}`;
   await authFetch(url, { method: 'DELETE' });
-}
-
-export async function getFileRole(fileId: string): Promise<DrivePermission | null> {
-  const permissions = await listPermissions(fileId);
-  return permissions[0] ?? null;
 }
 
 export async function getCurrentUserRole(fileId: string, userEmail: string): Promise<'owner' | 'writer' | 'reader' | null> {

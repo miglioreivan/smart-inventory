@@ -1,8 +1,31 @@
+import { useState, useMemo } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { InventoryView } from './components/inventory/InventoryView';
+import { SmartBoxView } from './components/scanner/SmartBoxView';
+import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
+import { useSpreadsheet } from './hooks/useSpreadsheet';
+import { PackageSearch, Table2, Boxes, LogOut } from 'lucide-react';
+
+type ViewKey = 'inventory' | 'smartbox';
 
 export default function App() {
   const { user, loading, error, signIn, signOut } = useGoogleAuth();
+  const [view, setView] = useState<ViewKey>('inventory');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const spreadsheet = useSpreadsheet(selectedId ?? '');
+
+  const barcodeColIndex = useMemo(() => {
+    return spreadsheet.columns.findIndex((c) => c.type === 'Barcode' || c.type === 'QRCode');
+  }, [spreadsheet.columns]);
+
+  const locationColIndex = useMemo(() => {
+    return spreadsheet.columns.findIndex((c) => c.type === 'Location' || c.label.toLowerCase().includes('location'));
+  }, [spreadsheet.columns]);
+
+  const nameColIndex = useMemo(() => {
+    return spreadsheet.columns.findIndex((c) => c.label.toLowerCase().includes('name') || c.label.toLowerCase().includes('product'));
+  }, [spreadsheet.columns]);
 
   if (loading) {
     return (
@@ -16,9 +39,7 @@ export default function App() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
         <p className="text-red-400">Authentication error</p>
-        <button onClick={signIn} className="btn-primary">
-          Retry
-        </button>
+        <button onClick={signIn} className="btn-primary">Retry</button>
       </div>
     );
   }
@@ -27,26 +48,88 @@ export default function App() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
         <h1 className="text-2xl font-bold tracking-tight">SmartInventory</h1>
-        <button onClick={signIn} className="btn-primary">
-          Sign in with Google
-        </button>
+        <p className="text-sm text-slate-400">Manage inventory with Google Sheets</p>
+        <button onClick={signIn} className="btn-primary">Sign in with Google</button>
       </div>
     );
   }
 
+  const handleScanProductToBox = (productBarcode: string, boxBarcode: string) => {
+    const rows = spreadsheet.inventory.data ?? [];
+    const rowIndex = rows.findIndex(
+      (row) => row[barcodeColIndex]?.toString().trim() === productBarcode,
+    );
+    if (rowIndex >= 0 && locationColIndex >= 0) {
+      const existingLocation = rows[rowIndex][locationColIndex]?.toString() ?? '';
+      const newLocation = boxBarcode
+        ? `${existingLocation ? existingLocation + ' > ' : ''}BOX-${boxBarcode.slice(-6)}`
+        : existingLocation;
+      spreadsheet.updateCell(rowIndex, locationColIndex, newLocation);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-slate-800 px-6 py-3">
-        <h1 className="text-lg font-semibold">SmartInventory</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-400">{user.email}</span>
-          <button onClick={signOut} className="btn-ghost text-xs">
-            Sign out
-          </button>
+    <div className="flex min-h-screen">
+      <aside className="w-56 flex-shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col">
+        <div className="px-4 py-4 border-b border-slate-800">
+          <h1 className="text-sm font-bold tracking-tight text-slate-200">
+            <PackageSearch size={18} className="inline mr-2 -mt-0.5 text-brand-400" />
+            SmartInventory
+          </h1>
         </div>
-      </header>
-      <main className="flex-1 p-6">
-        <InventoryView />
+
+        <nav className="flex-1 px-2 py-3 space-y-1">
+          <button
+            onClick={() => setView('inventory')}
+            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              view === 'inventory'
+                ? 'bg-slate-800 text-slate-100'
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+            }`}
+          >
+            <Table2 size={16} />
+            Inventory
+          </button>
+          <button
+            onClick={() => setView('smartbox')}
+            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              view === 'smartbox'
+                ? 'bg-slate-800 text-slate-100'
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+            }`}
+          >
+            <Boxes size={16} />
+            Smart Boxes
+          </button>
+        </nav>
+
+        <div className="px-2 py-3 border-t border-slate-800">
+          <SpreadsheetSelector selectedId={selectedId} onSelect={setSelectedId} />
+        </div>
+
+        <div className="px-4 py-3 border-t border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-xs text-slate-500">{user.email}</span>
+            <button onClick={signOut} className="rounded p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800">
+              <LogOut size={14} />
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 p-6 overflow-auto">
+        {view === 'inventory' && <InventoryView spreadsheetId={selectedId} />}
+        {view === 'smartbox' && (
+          <SmartBoxView
+            data={spreadsheet.inventory.data ?? []}
+            columns={spreadsheet.columns}
+            barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
+            locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
+            nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
+            onScanProductToBox={handleScanProductToBox}
+            onClose={() => setView('inventory')}
+          />
+        )}
       </main>
     </div>
   );

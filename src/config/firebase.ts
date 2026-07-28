@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { GOOGLE_API_SCOPES } from './googleScopes';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -11,22 +12,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-export async function signInWithGoogle(): Promise<void> {
+const TOKEN_KEY = 'smart-inventory-google-token';
+
+export function getGoogleAccessToken(): string | null {
+  return sessionStorage.getItem(TOKEN_KEY);
+}
+
+export async function signInWithGoogle(): Promise<string | null> {
   const provider = new GoogleAuthProvider();
+  for (const scope of GOOGLE_API_SCOPES) {
+    provider.addScope(scope);
+  }
   provider.setCustomParameters({ prompt: 'select_account' });
 
   try {
-    await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken ?? null;
+    if (token) {
+      sessionStorage.setItem(TOKEN_KEY, token);
+    }
+    return token;
   } catch (err) {
     const code = (err as { code?: string }).code;
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-      return;
+      return null;
     }
     throw err;
   }
 }
 
 export async function signOutUser(): Promise<void> {
+  sessionStorage.removeItem(TOKEN_KEY);
   await signOut(auth);
 }
 
