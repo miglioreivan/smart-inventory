@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { GOOGLE_AUTH_SCOPES_STRING } from './googleScopes';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,24 +11,23 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-export async function signInWithGoogle(): Promise<string | null> {
+export async function signInWithGoogle(): Promise<void> {
   const provider = new GoogleAuthProvider();
-  provider.addScope(GOOGLE_AUTH_SCOPES_STRING);
   provider.setCustomParameters({ prompt: 'select_account' });
 
-  const result = await signInWithPopup(auth, provider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  return credential?.accessToken ?? null;
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+      return;
+    }
+    throw err;
+  }
 }
 
 export async function signOutUser(): Promise<void> {
   await signOut(auth);
-}
-
-export async function getAccessToken(): Promise<string> {
-  const user = auth.currentUser;
-  if (!user) throw new Error('Not authenticated');
-  return user.getIdToken();
 }
 
 export { auth };

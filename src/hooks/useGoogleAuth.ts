@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, signInWithGoogle, signOutUser, getAccessToken } from '../config/firebase';
+import { auth, signInWithGoogle, signOutUser } from '../config/firebase';
+import {
+  requestAccessToken,
+  requestAccessTokenWithPrompt,
+  getGoogleAccessToken,
+  clearGoogleAccessToken,
+} from '../config/googleAuth';
 
 interface AuthState {
   user: User | null;
@@ -22,43 +28,58 @@ export function useGoogleAuth(): AuthState & {
   });
 
   useEffect(() => {
+    let cancelled = false;
+
     const unsubscribe = onAuthStateChanged(
       auth,
       async (user) => {
         if (user) {
           try {
-            const accessToken = await getAccessToken();
-            setState({ user, loading: false, error: null, accessToken });
-          } catch (err) {
-            setState({ user, loading: false, error: err as Error, accessToken: null });
+            const token = await requestAccessToken();
+            if (!cancelled) {
+              setState({ user, loading: false, error: null, accessToken: token });
+            }
+          } catch {
+            if (!cancelled) {
+              setState({ user, loading: false, error: null, accessToken: null });
+            }
           }
         } else {
-          setState({ user: null, loading: false, error: null, accessToken: null });
+          clearGoogleAccessToken();
+          if (!cancelled) {
+            setState({ user: null, loading: false, error: null, accessToken: null });
+          }
         }
       },
       (err) => {
-        setState({ user: null, loading: false, error: err as Error, accessToken: null });
+        if (!cancelled) {
+          setState({ user: null, loading: false, error: err as Error, accessToken: null });
+        }
       },
     );
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const signIn = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const accessToken = await signInWithGoogle();
-      if (accessToken) {
-        setState((prev) => ({ ...prev, accessToken }));
-      }
+      await signInWithGoogle();
+      const token = await requestAccessTokenWithPrompt();
+      setState((prev) => ({ ...prev, accessToken: token }));
     } catch (err) {
-      setState((prev) => ({ ...prev, loading: false, error: err as Error }));
+      clearGoogleAccessToken();
+      setState((prev) => ({ ...prev, loading: false, error: err as Error, accessToken: null }));
     }
   }, []);
 
   const signOut = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true }));
     try {
+      clearGoogleAccessToken();
       await signOutUser();
     } catch (err) {
       setState((prev) => ({ ...prev, loading: false, error: err as Error }));
@@ -66,7 +87,7 @@ export function useGoogleAuth(): AuthState & {
   }, []);
 
   const refreshToken = useCallback(async (): Promise<string> => {
-    const token = await getAccessToken();
+    const token = await getGoogleAccessToken();
     setState((prev) => ({ ...prev, accessToken: token }));
     return token;
   }, []);

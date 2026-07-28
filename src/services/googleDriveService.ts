@@ -1,9 +1,9 @@
-import { getAccessToken } from '../config/firebase';
+import { getGoogleAccessToken } from '../config/googleAuth';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 
 async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
-  const token = await getAccessToken();
+  const token = await getGoogleAccessToken();
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('Content-Type', 'application/json');

@@ -1,4 +1,4 @@
-import { getAccessToken } from '../config/firebase';
+import { getGoogleAccessToken } from '../config/googleAuth';
 import type {
   BatchGetRequest,
   BatchGetResponse,
@@ -30,7 +30,7 @@ function enforceRateLimit(): void {
 async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Response> {
   enforceRateLimit();
 
-  const token = await getAccessToken();
+  const token = await getGoogleAccessToken();
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('Content-Type', 'application/json');
