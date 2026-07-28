@@ -44,41 +44,6 @@ export default function App() {
     enabled: true,
   });
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-        <p className="text-red-400">Authentication error</p>
-        <button onClick={signIn} className="btn-primary">Retry</button>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-4 sm:p-8">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">SmartInventory</h1>
-        <p className="text-sm text-slate-400 text-center">Manage inventory with Google Sheets</p>
-        <button onClick={signIn} className="btn-primary">Sign in with Google</button>
-      </div>
-    );
-  }
-
-  const handleDeleteWorkbook = async () => {
-    if (!selectedId) return;
-    try {
-      await spreadsheet.deleteWorkbook.mutateAsync();
-      setSelectedId(null);
-    } catch {}
-  };
-
   const allRows = useMemo(() => {
     const tabs = spreadsheet.tabs.data ?? [];
     return tabs
@@ -89,6 +54,14 @@ export default function App() {
         columns: spreadsheet.columns,
       }));
   }, [spreadsheet.tabs.data, spreadsheet.inventory.data, spreadsheet.columns]);
+
+  const handleDeleteWorkbook = useCallback(async () => {
+    if (!selectedId) return;
+    try {
+      await spreadsheet.deleteWorkbook.mutateAsync();
+      setSelectedId(null);
+    } catch {}
+  }, [selectedId, spreadsheet]);
 
   const NavItems = ({ onClick }: { onClick?: () => void }) => (
     <>
@@ -124,6 +97,33 @@ export default function App() {
       </button>
     </>
   );
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+        <p className="text-red-400">Authentication error</p>
+        <button onClick={signIn} className="btn-primary">Retry</button>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-4 sm:p-8">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">SmartInventory</h1>
+        <p className="text-sm text-slate-400 text-center">Manage inventory with Google Sheets</p>
+        <button onClick={signIn} className="btn-primary">Sign in with Google</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">
