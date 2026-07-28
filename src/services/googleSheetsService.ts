@@ -91,9 +91,10 @@ export async function getSheetData(spreadsheetId: string, range: string): Promis
 }
 
 export async function updateSheetData(spreadsheetId: string, range: string, values: (string | number | boolean)[][]): Promise<BatchUpdateResponse> {
+  const strValues = values.map((row) => row.map((cell) => String(cell)));
   return batchUpdate({
     spreadsheetId,
-    data: [{ range, majorDimension: 'ROWS', values }],
+    data: [{ range, majorDimension: 'ROWS', values: strValues }],
   });
 }
 

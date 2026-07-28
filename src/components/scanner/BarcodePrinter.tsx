@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
-import { Printer, Download } from 'lucide-react';
+import { Printer } from 'lucide-react';
 
 interface LabelItem {
   barcode: string;
@@ -62,7 +62,6 @@ export function BarcodePrinter({ items, title, format, onClose }: BarcodePrinter
   }, [items]);
 
   const isThermal = format === 'Thermal';
-  const cols = isThermal ? 1 : 2;
   const labelWidth = isThermal ? '58mm' : '48%';
   const labelHeight = isThermal ? '35mm' : undefined;
 

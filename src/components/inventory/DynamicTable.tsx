@@ -45,7 +45,6 @@ export function DynamicTable({ columns, rows, loading, onRowClick }: DynamicTabl
 
   const totalPages = Math.max(1, Math.ceil(sortedFiltered.length / PAGINATION_DEFAULT_SIZE));
   const paged = sortedFiltered.slice(page * PAGINATION_DEFAULT_SIZE, (page + 1) * PAGINATION_DEFAULT_SIZE);
-  const offset = rows.indexOf(paged[0] ?? []) > 0 ? rows.indexOf(paged[0]) : page * PAGINATION_DEFAULT_SIZE + 1;
 
   const handleSort = useCallback((colIdx: number) => {
     setSortKey((prev) => {

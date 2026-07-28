@@ -1,9 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { SmartBoxScanner } from './SmartBoxScanner';
 import { Badge } from '../common/Badge';
-import { Modal } from '../common/Modal';
-import { searchIcon, Select, Check } from 'lucide-react';
-import { Package, PackageCheck, Box, X, Plus, Hash, MapPin, ArrowLeft } from 'lucide-react';
+import { Package, PackageCheck, Box, X, Hash, MapPin, ArrowLeft } from 'lucide-react';
 
 interface BoxItem {
   barcode: string;
@@ -32,12 +30,12 @@ interface SmartBoxViewProps {
 
 export function SmartBoxView({
   data,
-  columns,
+  columns: _columns,
   barcodeColIndex,
   locationColIndex,
   nameColIndex,
   onScanProductToBox,
-  onClose,
+  onClose: _onClose,
 }: SmartBoxViewProps) {
   const [mode, setMode] = useState<'product' | 'box'>('box');
   const [boxes, setBoxes] = useState<SmartBox[]>([]);

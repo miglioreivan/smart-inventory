@@ -1,6 +1,6 @@
 import type { ColumnMeta } from '../../types/schema.types';
 import { formatCurrency, formatPercentage, formatISODate, parseISODate } from '../../utils/formatters';
-import { Check, Link, QrCode, Image, Mail, MapPin, Palette, Hash, Calendar, Barcode, List, Banknote, Percent } from 'lucide-react';
+import { Check, Link, QrCode, Image, Mail, MapPin, Hash, Calendar, Barcode, List, Banknote, Percent } from 'lucide-react';
 import { Tooltip } from '../common/Tooltip';
 import type { ReactNode } from 'react';
 

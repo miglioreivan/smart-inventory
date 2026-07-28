@@ -5,7 +5,7 @@ import { ProductDetailModal } from './ProductDetailModal';
 import { SpreadsheetSelector } from './SpreadsheetSelector';
 import { SmartBoxView } from '../scanner/SmartBoxView';
 import { BarcodePrinter } from '../scanner/BarcodePrinter';
-import { Loader2, Sheet, Table2, Scan, Printer, CheckSquare, Square } from 'lucide-react';
+import { Loader2, Sheet, Table2, Scan, Printer } from 'lucide-react';
 
 type TabKey = 'inventory' | 'scanner';
 
@@ -64,13 +64,13 @@ export function InventoryView() {
     [spreadsheet, barcodeColIndex, locationColIndex],
   );
 
-  const toggleRowSelection = useCallback((rowIndex: number) => {
+  const _toggleRowSelection = useCallback((_rowIndex: number) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(rowIndex)) {
-        next.delete(rowIndex);
+      if (next.has(_rowIndex)) {
+        next.delete(_rowIndex);
       } else {
-        next.add(rowIndex);
+        next.add(_rowIndex);
       }
       return next;
     });
