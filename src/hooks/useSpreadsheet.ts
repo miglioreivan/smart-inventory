@@ -175,8 +175,15 @@ export function useCreateSpreadsheet() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ title, columns: cols }: { title: string; columns: { label: string; type: string }[] }) =>
-      createSpreadsheet(title, cols),
+    mutationFn: ({
+      title,
+      sheetName,
+      columns: cols,
+    }: {
+      title: string;
+      sheetName: string;
+      columns: { label: string; type: string; required?: boolean; options?: string }[];
+    }) => createSpreadsheet(title, sheetName, cols),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['spreadsheets-list'] });
     },

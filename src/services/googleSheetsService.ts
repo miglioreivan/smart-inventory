@@ -152,81 +152,132 @@ export class RateLimitError extends Error {
 
 export async function createSpreadsheet(
   title: string,
-  columns: { label: string; type: string }[],
+  sheetName: string,
+  columns: { label: string; type: string; required?: boolean; options?: string }[],
 ): Promise<{ spreadsheetId: string; spreadsheetUrl: string }> {
-  const url = SHEETS_API_BASE;
+  const token = getGoogleAccessToken();
+  if (!token) throw new Error('Not authenticated: missing Google OAuth access token');
 
-  const headers = columns.map((col) => col.label);
-  const types = columns.map((col) => col.type);
+  const sheetId = 0;
+  const schemaTabId = 1;
+  const headers = columns.map((c) => c.label);
+  const types = columns.map((c) => c.type);
+  const requireds = columns.map((c) => c.required ?? false);
+  const optionsList = columns.map((c) => c.options ?? '');
+
+  const requests = [
+    {
+      addSheet: {
+        properties: {
+          title: sheetName,
+          sheetId,
+          gridProperties: { rowCount: 1000, columnCount: headers.length },
+        },
+      },
+    },
+    {
+      addSheet: {
+        properties: {
+          title: '_SYSTEM_SCHEMA',
+          sheetId: schemaTabId,
+          hidden: true,
+          gridProperties: { rowCount: headers.length + 1, columnCount: 5 },
+        },
+      },
+    },
+    {
+      updateCells: {
+        rows: [
+          {
+            values: headers.map((h) => ({
+              userEnteredValue: { stringValue: h },
+              userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
+            })),
+          },
+        ],
+        fields: 'userEnteredValue,userEnteredFormat',
+        start: { sheetId, rowIndex: 0, columnIndex: 0 },
+      },
+    },
+    {
+      updateCells: {
+        rows: [
+          {
+            values: ['COLUMN_INDEX', 'COLUMN_LABEL', 'COLUMN_TYPE', 'OPTIONS', 'REQUIRED'].map((h) => ({
+              userEnteredValue: { stringValue: h },
+              userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
+            })),
+          },
+          ...headers.map((label, idx) => ({
+            values: [
+              { userEnteredValue: { numberValue: idx } },
+              { userEnteredValue: { stringValue: label } },
+              { userEnteredValue: { stringValue: types[idx] ?? 'Text' } },
+              { userEnteredValue: { stringValue: optionsList[idx] ?? '' } },
+              { userEnteredValue: { boolValue: requireds[idx] ?? false } },
+            ],
+          })),
+        ],
+        fields: 'userEnteredValue',
+        start: { sheetId: schemaTabId, rowIndex: 0, columnIndex: 0 },
+      },
+    },
+  ];
 
   const body = {
     properties: { title },
     sheets: [
       {
         properties: {
-          title: 'Inventory',
+          title: sheetName,
+          sheetId,
           gridProperties: { rowCount: 1000, columnCount: headers.length },
         },
-        data: [
-          {
-            startRow: 0,
-            startColumn: 0,
-            rowData: {
-              values: headers.map((h) => ({
-                userEnteredValue: { stringValue: h },
-                userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
-              })),
-            },
-          },
-        ],
       },
       {
         properties: {
           title: '_SYSTEM_SCHEMA',
+          sheetId: schemaTabId,
           hidden: true,
           gridProperties: { rowCount: headers.length + 1, columnCount: 5 },
         },
-        data: [
-          {
-            startRow: 0,
-            startColumn: 0,
-            rowData: {
-              values: [
-                'COLUMN_INDEX',
-                'COLUMN_LABEL',
-                'COLUMN_TYPE',
-                'OPTIONS',
-                'REQUIRED',
-              ].map((h) => ({
-                userEnteredValue: { stringValue: h },
-                userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
-              })),
-            },
-          },
-          ...headers.map((label, idx) => ({
-            startRow: idx + 1,
-            startColumn: 0,
-            rowData: {
-              values: [
-                { userEnteredValue: { numberValue: idx } },
-                { userEnteredValue: { stringValue: label } },
-                { userEnteredValue: { stringValue: types[idx] ?? 'Text' } },
-                { userEnteredValue: { stringValue: '' } },
-                { userEnteredValue: { boolValue: false } },
-              ],
-            },
-          })),
-        ],
       },
     ],
   };
 
-  const response = await authFetch(url, {
+  const createResponse = await fetch(SHEETS_API_BASE, {
     method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify(body),
   });
 
-  const data = await response.json();
+  if (!createResponse.ok) {
+    const error: GoogleSheetsError = await createResponse.json().catch(() => ({
+      code: createResponse.status,
+      message: createResponse.statusText,
+      status: createResponse.statusText,
+    }));
+    throw new SheetsApiError(error);
+  }
+
+  const data = await createResponse.json();
+
+  try {
+    await fetch(`${SHEETS_API_BASE}/${data.spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
+    });
+  } catch {
+    // spreadsheet created but schema setup failed — still return the ID
+  }
+
   return {
     spreadsheetId: data.spreadsheetId,
     spreadsheetUrl: data.spreadsheetUrl,

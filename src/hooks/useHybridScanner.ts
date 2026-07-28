@@ -38,6 +38,7 @@ export function useHybridScanner({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
+  const isMounted = useRef(true);
   const onGlobalScanRef = useRef(onGlobalScan);
   const modeRef = useRef(mode);
   const debounceRef = useRef(scanDebounceMs);
@@ -52,14 +53,19 @@ export function useHybridScanner({
   debounceRef.current = scanDebounceMs;
   enabledRef.current = enabled;
 
+  const safeSetState = useCallback(<T>(setter: (value: T) => void, value: T) => {
+    if (isMounted.current) setter(value);
+  }, []);
+
   const emitScan = useCallback((barcode: string, source: 'camera' | 'hardware') => {
+    if (!isMounted.current) return;
     const now = Date.now();
     if (now - lastScanTimeRef.current < debounceRef.current) return;
     if (barcode.length < HARDWARE_SCAN_MIN_LENGTH || barcode.length > HARDWARE_SCAN_MAX_LENGTH) return;
 
     lastScanTimeRef.current = now;
     const event: ScanEvent = { barcode, source, timestamp: now };
-    setLastScan(event);
+    safeSetState(setLastScan, event);
 
     if (modeRef.current === 'form') {
       const el = document.activeElement;
@@ -74,18 +80,14 @@ export function useHybridScanner({
     if (modeRef.current === 'search' && onGlobalScanRef.current) {
       onGlobalScanRef.current(event);
     }
-  }, []);
+  }, [safeSetState]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!enabledRef.current) return;
+      if (!enabledRef.current || !isMounted.current) return;
 
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName ?? '')) {
-        if (modeRef.current === 'form') {
-          // allow keyboard passthrough in form mode — hardware scanner still intercepted below
-        } else {
-          return;
-        }
+        if (modeRef.current !== 'form') return;
       }
 
       const now = Date.now();
@@ -121,7 +123,7 @@ export function useHybridScanner({
   }, [emitScan]);
 
   const startCamera = useCallback(async () => {
-    setCameraError(null);
+    safeSetState(setCameraError, null);
     try {
       const existing = document.getElementById(CAMERA_ELEMENT_ID);
       if (!existing) {
@@ -141,45 +143,62 @@ export function useHybridScanner({
           aspectRatio: 1,
         },
         (decodedText) => {
-          emitScan(decodedText, 'camera');
+          if (isMounted.current) emitScan(decodedText, 'camera');
         },
         () => {},
       );
 
-      setIsCameraActive(true);
+      safeSetState(setIsCameraActive, true);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Camera access denied or unavailable';
-      setCameraError(message);
-      setIsCameraActive(false);
+      safeSetState(setCameraError, message);
+      safeSetState(setIsCameraActive, false);
     }
-  }, [emitScan]);
+  }, [emitScan, safeSetState]);
 
   const stopCamera = useCallback(async () => {
     try {
-      if (scannerRef.current && scannerRef.current.isScanning) {
+      if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop();
       }
     } catch {
       // scanner may already be stopped
     }
     scannerRef.current = null;
-    setIsCameraActive(false);
+    safeSetState(setIsCameraActive, false);
 
-    const el = document.getElementById(CAMERA_ELEMENT_ID);
-    if (el) el.remove();
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(() => {});
-      }
+    try {
       const el = document.getElementById(CAMERA_ELEMENT_ID);
       if (el) el.remove();
+    } catch {
+      // element may already be removed
+    }
+  }, [safeSetState]);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      try {
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.stop().catch(() => {});
+        }
+      } catch {
+        // ignore cleanup errors
+      }
+      scannerRef.current = null;
+      try {
+        const el = document.getElementById(CAMERA_ELEMENT_ID);
+        if (el) el.remove();
+      } catch {
+        // ignore cleanup errors
+      }
     };
   }, []);
 
-  const clearLastScan = useCallback(() => setLastScan(null), []);
+  const clearLastScan = useCallback(() => {
+    if (isMounted.current) setLastScan(null);
+  }, []);
 
   return {
     isCameraActive,

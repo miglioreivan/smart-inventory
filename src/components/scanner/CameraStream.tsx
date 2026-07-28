@@ -12,6 +12,7 @@ const VIEWPORT_ID = 'camera-stream-viewport';
 
 export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
   const [status, setStatus] = useState<'loading' | 'active' | 'error'>('loading');
+  const isMounted = useRef(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const onScanRef = useRef(onScan);
   const onErrorRef = useRef(onError);
@@ -20,12 +21,23 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
   onErrorRef.current = onError;
 
   useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!active) {
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {});
+      try {
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.stop().catch(() => {});
+        }
+      } catch {
+        // ignore cleanup errors
       }
       scannerRef.current = null;
-      setStatus('loading');
+      if (isMounted.current) setStatus('loading');
       return;
     }
 
@@ -43,7 +55,9 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
           throw new Error('No cameras found');
         }
 
-        const backCamera = cameras.find((c) => c.id.toLowerCase().includes('back') || c.id.toLowerCase().includes('environment')) ?? cameras[0];
+        const backCamera = cameras.find(
+          (c) => c.id.toLowerCase().includes('back') || c.id.toLowerCase().includes('environment'),
+        ) ?? cameras[0];
 
         await scannerRef.current.start(
           backCamera.id,
@@ -53,14 +67,14 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
             aspectRatio: 1,
           },
           (decodedText) => {
-            if (!cancelled) onScanRef.current(decodedText);
+            if (!cancelled && isMounted.current) onScanRef.current(decodedText);
           },
           () => {},
         );
 
-        if (!cancelled) setStatus('active');
+        if (!cancelled && isMounted.current) setStatus('active');
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && isMounted.current) {
           setStatus('error');
           onErrorRef.current(err instanceof Error ? err.message : 'Camera error');
         }
@@ -71,8 +85,12 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
 
     return () => {
       cancelled = true;
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {});
+      try {
+        if (scannerRef.current?.isScanning) {
+          scannerRef.current.stop().catch(() => {});
+        }
+      } catch {
+        // ignore cleanup errors
       }
     };
   }, [active]);

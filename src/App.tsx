@@ -8,9 +8,9 @@ import { useSpreadsheet } from './hooks/useSpreadsheet';
 import { useHybridScanner } from './hooks/useHybridScanner';
 import type { ScannerMode } from './hooks/useHybridScanner';
 import type { ScanEvent } from './types/inventory.types';
-import { PackageSearch, Table2, Boxes, QrCode, LogOut } from 'lucide-react';
+import { PackageSearch, Table2, Search, LogOut } from 'lucide-react';
 
-type ViewKey = 'inventory' | 'smartbox' | 'boxgen';
+type ViewKey = 'inventory' | 'search';
 
 export default function App() {
   const { user, loading, error, signIn, signOut } = useGoogleAuth();
@@ -18,6 +18,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [formModalOpen, setFormModalOpen] = useState(false);
+  const [searchTab, setSearchTab] = useState<'smartbox' | 'labels'>('smartbox');
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
 
@@ -109,26 +110,15 @@ export default function App() {
             Inventory
           </button>
           <button
-            onClick={() => setView('smartbox')}
+            onClick={() => setView('search')}
             className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              view === 'smartbox'
+              view === 'search'
                 ? 'bg-slate-800 text-slate-100'
                 : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
             }`}
           >
-            <Boxes size={16} />
-            Smart Boxes
-          </button>
-          <button
-            onClick={() => setView('boxgen')}
-            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              view === 'boxgen'
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-            }`}
-          >
-            <QrCode size={16} />
-            Box & Labels
+            <Search size={16} />
+            Search & Boxes
           </button>
         </nav>
 
@@ -154,18 +144,41 @@ export default function App() {
             onFormModalChange={setFormModalOpen}
           />
         )}
-        {view === 'smartbox' && (
-          <SmartBoxView
-            data={spreadsheet.inventory.data ?? []}
-            columns={spreadsheet.columns}
-            barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
-            locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
-            nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
-            onScanProductToBox={handleScanProductToBox}
-            onClose={() => setView('inventory')}
-          />
+        {view === 'search' && (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center gap-1 mb-4 rounded-lg bg-slate-800 p-0.5 w-fit">
+              <button
+                onClick={() => setSearchTab('smartbox')}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  searchTab === 'smartbox' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Scanner & Boxes
+              </button>
+              <button
+                onClick={() => setSearchTab('labels')}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  searchTab === 'labels' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Box Labels
+              </button>
+            </div>
+
+            {searchTab === 'smartbox' && (
+              <SmartBoxView
+                data={spreadsheet.inventory.data ?? []}
+                columns={spreadsheet.columns}
+                barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
+                locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
+                nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
+                onScanProductToBox={handleScanProductToBox}
+                onClose={() => setView('inventory')}
+              />
+            )}
+            {searchTab === 'labels' && <BoxGenerator />}
+          </div>
         )}
-        {view === 'boxgen' && <BoxGenerator />}
       </main>
     </div>
   );
