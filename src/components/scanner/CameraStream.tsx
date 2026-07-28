@@ -74,20 +74,19 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
 
         scannerRef.current = new Html5Qrcode(VIEWPORT_ID, {
           formatsToSupport: SUPPORTED_FORMATS,
-          useBarCodeDetectorIfSupported: true,
           verbose: false,
         });
 
         const videoConstraints: MediaTrackConstraints = cameraId
-          ? { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }
-          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] };
+          ? { deviceId: { exact: cameraId } }
+          : { facingMode: 'environment' };
         console.info(LOG_PREFIX, 'starting camera with', cameraId ? `deviceId: "${cameraId}"` : 'facingMode: "environment"');
 
         await scannerRef.current.start(
           videoConstraints,
           {
             fps: 10,
-            qrbox: { width: 300, height: 150 }, // Rettangolo per aiutare ZXing a leggere i barcode 1D
+            qrbox: { width: 250, height: 150 }, // Più sicuro, compatibile con schermi piccoli
           },
           (decodedText) => {
             if (!cancelled && isMounted.current) {
