@@ -27,9 +27,10 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
   const [status, setStatus] = useState<'loading' | 'active' | 'error'>('loading');
   const isMounted = useRef(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  
+  // Use refs to avoid re-triggering useEffect on every render
   const onScanRef = useRef(onScan);
   const onErrorRef = useRef(onError);
-
   onScanRef.current = onScan;
   onErrorRef.current = onError;
 
@@ -42,18 +43,12 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
 
   useEffect(() => {
     if (!active) {
-      try {
-        if (scannerRef.current?.isScanning) {
-          scannerRef.current.stop().catch(() => {});
-          console.info(LOG_PREFIX, 'stream stopped');
-        }
-      } catch {
-        // ignore cleanup errors
-      }
-      try {
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().then(() => {
+          scannerRef.current?.clear();
+        }).catch((err) => console.warn(LOG_PREFIX, 'Cleanup stop error', err));
+      } else {
         scannerRef.current?.clear();
-      } catch {
-        // ignore clear errors
       }
       scannerRef.current = null;
       if (isMounted.current) setStatus('loading');
@@ -63,44 +58,38 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
     let cancelled = false;
 
     const start = async () => {
+      // Piccolo delay per dare tempo al DOM e a fotocamere precedenti di liberare la risorsa
+      await new Promise(r => setTimeout(r, 200));
+      if (cancelled || !isMounted.current) return;
+
       const el = document.getElementById(VIEWPORT_ID);
-      if (!el) {
-        console.warn(LOG_PREFIX, `viewport element "#${VIEWPORT_ID}" not found`);
-        return;
-      }
+      if (!el) return;
 
       try {
-        console.info(LOG_PREFIX, 'initializing scanner with', SUPPORTED_FORMATS.length, 'format(s)');
-
         scannerRef.current = new Html5Qrcode(VIEWPORT_ID, {
           formatsToSupport: SUPPORTED_FORMATS,
           verbose: false,
         });
 
-        const videoConstraints: MediaTrackConstraints = cameraId
-          ? { deviceId: { exact: cameraId } }
+        const videoConstraints = cameraId 
+          ? { deviceId: { exact: cameraId } } 
           : { facingMode: 'environment' };
-        console.info(LOG_PREFIX, 'starting camera with', cameraId ? `deviceId: "${cameraId}"` : 'facingMode: "environment"');
 
         await scannerRef.current.start(
           videoConstraints,
           {
             fps: 10,
-            qrbox: { width: 250, height: 150 }, // Più sicuro, compatibile con schermi piccoli
+            qrbox: { width: 250, height: 150 }, // Rettangolo per EAN-13, compatibile con mobile
           },
           (decodedText) => {
             if (!cancelled && isMounted.current) {
-              console.info(LOG_PREFIX, `scanned successfully: "${decodedText}"`);
               onScanRef.current(decodedText);
             }
           },
-          () => {
-            // suppress noisy frame-by-frame scan misses
-          },
+          () => {} // Nasconde gli errori di frame vuoti
         );
 
         if (!cancelled && isMounted.current) {
-          console.info(LOG_PREFIX, 'camera started successfully');
           setStatus('active');
         }
       } catch (err) {
@@ -116,18 +105,10 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
 
     return () => {
       cancelled = true;
-      try {
-        if (scannerRef.current?.isScanning) {
-          scannerRef.current.stop().catch(() => {});
-          console.info(LOG_PREFIX, 'cleanup: stream stopped');
-        }
-      } catch {
-        // ignore cleanup errors
-      }
-      try {
-        scannerRef.current?.clear();
-      } catch {
-        // ignore clear errors
+      if (scannerRef.current?.isScanning) {
+        scannerRef.current.stop().then(() => {
+          scannerRef.current?.clear();
+        }).catch((err) => console.warn(LOG_PREFIX, 'Unmount stop error', err));
       }
     };
   }, [active, cameraId]);
@@ -167,7 +148,7 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
       {status === 'active' && (
         <>
           <div className="absolute inset-0 pointer-events-none border-2 border-brand-400/30 rounded-lg" />
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-48 w-48 rounded-lg border-2 border-brand-400/50">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-40 w-64 rounded-lg border-2 border-brand-400/50">
             <div className="absolute top-0 left-2 h-4 w-4 border-t-2 border-l-2 border-brand-400 rounded-tl" />
             <div className="absolute top-0 right-2 h-4 w-4 border-t-2 border-r-2 border-brand-400 rounded-tr" />
             <div className="absolute bottom-0 left-2 h-4 w-4 border-b-2 border-l-2 border-brand-400 rounded-bl" />
