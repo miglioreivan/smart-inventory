@@ -86,6 +86,7 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
           videoConstraints,
           {
             fps: 10,
+            qrbox: { width: 300, height: 150 }, // Rettangolo per aiutare ZXing a leggere i barcode 1D
           },
           (decodedText) => {
             if (!cancelled && isMounted.current) {

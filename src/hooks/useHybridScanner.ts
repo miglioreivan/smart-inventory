@@ -222,6 +222,7 @@ export function useHybridScanner({
       { deviceId: { exact: cameraId } },
       {
         fps: 10,
+        qrbox: { width: 300, height: 150 },
       },
       (decodedText) => {
         if (isMounted.current) {
