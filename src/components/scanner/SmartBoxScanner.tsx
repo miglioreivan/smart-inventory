@@ -30,7 +30,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
   );
 
   const { lastScan, clearLastScan, cameraError } = useHybridScanner({
-    onScan: handleScan,
+    onGlobalScan: handleScan,
     enabled: true,
   });
 
