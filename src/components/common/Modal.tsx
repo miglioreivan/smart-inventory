@@ -49,22 +49,22 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-200 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-2 sm:p-4 transition-opacity duration-200 ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
     >
       <div
-        className={`w-full ${SIZE_CLASSES[size]} rounded-xl border border-slate-700 bg-slate-900 shadow-2xl transition-transform duration-200 ${
+        className={`w-full max-w-full sm:${SIZE_CLASSES[size]} rounded-xl border border-slate-700 bg-slate-900 shadow-2xl transition-transform duration-200 mx-auto ${
           visible ? 'scale-100' : 'scale-95'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200">
-            <X size={20} />
+        <div className="flex items-center justify-between border-b border-slate-800 px-4 sm:px-6 py-3 sm:py-4">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-100 truncate mr-2">{title}</h2>
+          <button onClick={onClose} className="flex-shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200">
+            <X size={18} className="sm:size-5" />
           </button>
         </div>
-        <div className="max-h-[75vh] overflow-y-auto p-6">{children}</div>
+        <div className="max-h-[70vh] sm:max-h-[75vh] overflow-y-auto p-4 sm:p-6">{children}</div>
       </div>
     </div>
   );

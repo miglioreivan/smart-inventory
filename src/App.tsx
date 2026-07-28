@@ -8,7 +8,7 @@ import { useSpreadsheet } from './hooks/useSpreadsheet';
 import { useHybridScanner } from './hooks/useHybridScanner';
 import type { ScannerMode } from './hooks/useHybridScanner';
 import type { ScanEvent } from './types/inventory.types';
-import { PackageSearch, Table2, Search, MapPin, LogOut } from 'lucide-react';
+import { PackageSearch, Table2, Search, MapPin, LogOut, Menu, X } from 'lucide-react';
 
 type ViewKey = 'inventory' | 'search' | 'locations';
 
@@ -19,6 +19,7 @@ export default function App() {
   const [globalSearch, setGlobalSearch] = useState('');
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [searchTab, setSearchTab] = useState<'smartbox' | 'locations'>('smartbox');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
 
@@ -65,9 +66,9 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-8">
-        <h1 className="text-2xl font-bold tracking-tight">SmartInventory</h1>
-        <p className="text-sm text-slate-400">Manage inventory with Google Sheets</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-8 p-4 sm:p-8">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">SmartInventory</h1>
+        <p className="text-sm text-slate-400 text-center">Manage inventory with Google Sheets</p>
         <button onClick={signIn} className="btn-primary">Sign in with Google</button>
       </div>
     );
@@ -92,14 +93,47 @@ export default function App() {
     try {
       await spreadsheet.deleteWorkbook.mutateAsync();
       setSelectedId(null);
-    } catch {
-      // deletion failed silently
-    }
+    } catch {}
   };
+
+  const NavItems = ({ onClick }: { onClick?: () => void }) => (
+    <>
+      <button
+        onClick={() => { setView('inventory'); onClick?.(); }}
+        className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-xs sm:text-sm transition-colors ${
+          view === 'inventory'
+            ? 'bg-slate-800 text-slate-100'
+            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+        }`}
+      >
+        <Table2 size={15} /> Inventory
+      </button>
+      <button
+        onClick={() => { setView('search'); onClick?.(); }}
+        className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-xs sm:text-sm transition-colors ${
+          view === 'search'
+            ? 'bg-slate-800 text-slate-100'
+            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+        }`}
+      >
+        <Search size={15} /> Search & Boxes
+      </button>
+      <button
+        onClick={() => { setView('locations'); onClick?.(); }}
+        className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-xs sm:text-sm transition-colors ${
+          view === 'locations'
+            ? 'bg-slate-800 text-slate-100'
+            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+        }`}
+      >
+        <MapPin size={15} /> Locations & Boxes
+      </button>
+    </>
+  );
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 flex-shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col">
+      <aside className="hidden lg:flex w-56 flex-shrink-0 border-r border-slate-800 bg-slate-950 flex-col">
         <div className="px-4 py-4 border-b border-slate-800">
           <h1 className="text-sm font-bold tracking-tight text-slate-200">
             <PackageSearch size={18} className="inline mr-2 -mt-0.5 text-brand-400" />
@@ -108,39 +142,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-2 py-3 space-y-1">
-          <button
-            onClick={() => setView('inventory')}
-            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              view === 'inventory'
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-            }`}
-          >
-            <Table2 size={16} />
-            Inventory
-          </button>
-          <button
-            onClick={() => setView('search')}
-            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              view === 'search'
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-            }`}
-          >
-            <Search size={16} />
-            Search & Boxes
-          </button>
-          <button
-            onClick={() => setView('locations')}
-            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              view === 'locations'
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-            }`}
-          >
-            <MapPin size={16} />
-            Locations & Boxes
-          </button>
+          <NavItems />
         </nav>
 
         <div className="px-2 py-3 border-t border-slate-800">
@@ -157,52 +159,88 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="flex-1 p-6 overflow-auto">
-        {view === 'inventory' && (
-          <InventoryView
-            spreadsheetId={selectedId}
-            globalSearch={globalSearch}
-            onFormModalChange={setFormModalOpen}
-            onDeleteWorkbook={handleDeleteWorkbook}
-          />
-        )}
-        {view === 'search' && (
-          <div className="flex flex-col h-full">
-            <div className="flex items-center gap-1 mb-4 rounded-lg bg-slate-800 p-0.5 w-fit">
-              <button
-                onClick={() => setSearchTab('smartbox')}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  searchTab === 'smartbox' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Scanner & Boxes
-              </button>
-              <button
-                onClick={() => setSearchTab('locations')}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  searchTab === 'locations' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Box Labels
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-40 flex">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setSidebarOpen(false)} />
+          <div className="relative w-64 flex-shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col h-full overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800">
+              <h1 className="text-sm font-bold text-slate-200">SmartInventory</h1>
+              <button onClick={() => setSidebarOpen(false)} className="rounded p-1 text-slate-400 hover:text-slate-200">
+                <X size={18} />
               </button>
             </div>
-
-            {searchTab === 'smartbox' && (
-              <SmartBoxView
-                data={spreadsheet.inventory.data ?? []}
-                columns={spreadsheet.columns}
-                barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
-                locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
-                nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
-                onScanProductToBox={handleScanProductToBox}
-                onClose={() => setView('inventory')}
-              />
-            )}
-            {searchTab === 'locations' && <LocationManager />}
+            <nav className="flex-1 px-2 py-3 space-y-1">
+              <NavItems onClick={() => setSidebarOpen(false)} />
+            </nav>
+            <div className="px-2 py-3 border-t border-slate-800">
+              <SpreadsheetSelector selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSidebarOpen(false); }} />
+            </div>
+            <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
+              <span className="truncate text-xs text-slate-500 mr-2">{user.email}</span>
+              <button onClick={signOut} className="rounded p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800">
+                <LogOut size={14} />
+              </button>
+            </div>
           </div>
-        )}
-        {view === 'locations' && <LocationManager />}
-      </main>
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="lg:hidden flex items-center justify-between border-b border-slate-800 px-4 py-3 bg-slate-950">
+          <button onClick={() => setSidebarOpen(true)} className="rounded p-1 text-slate-400 hover:text-slate-200">
+            <Menu size={20} />
+          </button>
+          <h1 className="text-sm font-bold text-slate-200">SmartInventory</h1>
+          <span className="text-[10px] text-slate-500 truncate max-w-[100px]">{user.email}</span>
+        </header>
+
+        <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto">
+          {view === 'inventory' && (
+            <InventoryView
+              spreadsheetId={selectedId}
+              globalSearch={globalSearch}
+              onFormModalChange={setFormModalOpen}
+              onDeleteWorkbook={handleDeleteWorkbook}
+            />
+          )}
+          {view === 'search' && (
+            <div className="flex flex-col h-full">
+              <div className="flex items-center gap-1 mb-3 sm:mb-4 rounded-lg bg-slate-800 p-0.5 w-fit">
+                <button
+                  onClick={() => setSearchTab('smartbox')}
+                  className={`rounded-md px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium transition-colors ${
+                    searchTab === 'smartbox' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Scanner & Boxes
+                </button>
+                <button
+                  onClick={() => setSearchTab('locations')}
+                  className={`rounded-md px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium transition-colors ${
+                    searchTab === 'locations' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Box Labels
+                </button>
+              </div>
+
+              {searchTab === 'smartbox' && (
+                <SmartBoxView
+                  data={spreadsheet.inventory.data ?? []}
+                  columns={spreadsheet.columns}
+                  barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
+                  locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
+                  nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
+                  onScanProductToBox={handleScanProductToBox}
+                  onClose={() => setView('inventory')}
+                />
+              )}
+              {searchTab === 'locations' && <LocationManager />}
+            </div>
+          )}
+          {view === 'locations' && <LocationManager />}
+        </main>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,9 @@ interface UseHybridScannerResult {
   lastScan: ScanEvent | null;
   clearLastScan: () => void;
   cameraError: string | null;
+  availableCameras: string[];
+  activeCameraId: string | null;
+  flipCamera: () => Promise<void>;
 }
 
 const CAMERA_ELEMENT_ID = 'hybrid-scanner-camera';
@@ -41,12 +44,6 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.CODABAR,
 ];
 
-const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
-  facingMode: 'environment',
-  width: { min: 1280, ideal: 1920 },
-  height: { min: 720, ideal: 1080 },
-};
-
 export function useHybridScanner({
   onGlobalScan,
   mode = 'search',
@@ -56,6 +53,8 @@ export function useHybridScanner({
   const [lastScan, setLastScan] = useState<ScanEvent | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState<string[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
 
   const isMounted = useRef(true);
   const onGlobalScanRef = useRef(onGlobalScan);
@@ -66,6 +65,7 @@ export function useHybridScanner({
   const bufferRef = useRef('');
   const lastKeyTimeRef = useRef(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const cameraIndexRef = useRef(0);
 
   onGlobalScanRef.current = onGlobalScan;
   modeRef.current = mode;
@@ -141,58 +141,86 @@ export function useHybridScanner({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [emitScan]);
 
+  const doStartCamera = useCallback(async (cameraId: string) => {
+    if (scannerRef.current?.isScanning) {
+      try { await scannerRef.current.stop(); } catch {}
+    }
+
+    const existing = document.getElementById(CAMERA_ELEMENT_ID);
+    if (!existing) {
+      const div = document.createElement('div');
+      div.id = CAMERA_ELEMENT_ID;
+      div.style.display = 'none';
+      document.body.appendChild(div);
+    }
+
+    scannerRef.current = new Html5Qrcode(CAMERA_ELEMENT_ID, {
+      formatsToSupport: SUPPORTED_FORMATS,
+      verbose: false,
+    });
+
+    await scannerRef.current.start(
+      { deviceId: { exact: cameraId } },
+      {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1,
+      },
+      (decodedText) => {
+        if (isMounted.current) emitScan(decodedText, 'camera');
+      },
+      () => {},
+    );
+
+    safeSetState(setIsCameraActive, true);
+    safeSetState(setActiveCameraId, cameraId);
+  }, [emitScan, safeSetState]);
+
   const startCamera = useCallback(async () => {
     safeSetState(setCameraError, null);
     try {
-      const existing = document.getElementById(CAMERA_ELEMENT_ID);
-      if (!existing) {
-        const div = document.createElement('div');
-        div.id = CAMERA_ELEMENT_ID;
-        div.style.display = 'none';
-        document.body.appendChild(div);
-      }
+      const cameras = await Html5Qrcode.getCameras();
+      const ids = cameras.map((c) => c.id);
+      if (ids.length === 0) throw new Error('No cameras found');
+      safeSetState(setAvailableCameras, ids);
 
-      scannerRef.current = new Html5Qrcode(CAMERA_ELEMENT_ID);
-
-      await scannerRef.current.start(
-        VIDEO_CONSTRAINTS,
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1,
-          formatsToSupport: SUPPORTED_FORMATS,
-        },
-        (decodedText) => {
-          if (isMounted.current) emitScan(decodedText, 'camera');
-        },
-        () => {},
+      const backIdx = ids.findIndex((id) =>
+        id.toLowerCase().includes('back') || id.toLowerCase().includes('environment'),
       );
-
-      safeSetState(setIsCameraActive, true);
+      cameraIndexRef.current = backIdx >= 0 ? backIdx : 0;
+      await doStartCamera(ids[cameraIndexRef.current]);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Camera access denied or unavailable';
       safeSetState(setCameraError, message);
       safeSetState(setIsCameraActive, false);
     }
-  }, [emitScan, safeSetState]);
+  }, [doStartCamera, safeSetState]);
+
+  const flipCamera = useCallback(async () => {
+    if (availableCameras.length < 2) return;
+    cameraIndexRef.current = (cameraIndexRef.current + 1) % availableCameras.length;
+    try {
+      await doStartCamera(availableCameras[cameraIndexRef.current]);
+    } catch {
+      // fall back to first camera
+    }
+  }, [availableCameras, doStartCamera]);
 
   const stopCamera = useCallback(async () => {
     try {
       if (scannerRef.current?.isScanning) {
         await scannerRef.current.stop();
       }
-    } catch {
-      // scanner may already be stopped
-    }
+    } catch {}
     scannerRef.current = null;
     safeSetState(setIsCameraActive, false);
+    safeSetState(setActiveCameraId, null);
+    safeSetState(setAvailableCameras, []);
 
     try {
       const el = document.getElementById(CAMERA_ELEMENT_ID);
       if (el) el.remove();
-    } catch {
-      // element may already be removed
-    }
+    } catch {}
   }, [safeSetState]);
 
   useEffect(() => {
@@ -203,16 +231,12 @@ export function useHybridScanner({
         if (scannerRef.current?.isScanning) {
           scannerRef.current.stop().catch(() => {});
         }
-      } catch {
-        // ignore cleanup errors
-      }
+      } catch {}
       scannerRef.current = null;
       try {
         const el = document.getElementById(CAMERA_ELEMENT_ID);
         if (el) el.remove();
-      } catch {
-        // ignore cleanup errors
-      }
+      } catch {}
     };
   }, []);
 
@@ -227,5 +251,8 @@ export function useHybridScanner({
     lastScan,
     clearLastScan,
     cameraError,
+    availableCameras,
+    activeCameraId,
+    flipCamera,
   };
 }

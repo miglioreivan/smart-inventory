@@ -69,10 +69,10 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
   }, []);
 
   const sortIcon = (colIdx: number) => {
-    if (sortKey !== colIdx) return <ArrowUpDown size={12} className="text-slate-600" />;
-    if (sortDir === 'asc') return <ArrowUp size={12} className="text-brand-400" />;
-    if (sortDir === 'desc') return <ArrowDown size={12} className="text-brand-400" />;
-    return <ArrowUpDown size={12} className="text-slate-600" />;
+    if (sortKey !== colIdx) return <ArrowUpDown size={10} className="text-slate-600" />;
+    if (sortDir === 'asc') return <ArrowUp size={10} className="text-brand-400" />;
+    if (sortDir === 'desc') return <ArrowDown size={10} className="text-brand-400" />;
+    return <ArrowUpDown size={10} className="text-slate-600" />;
   };
 
   if (loading) {
@@ -85,7 +85,7 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
 
   if (rows.length <= 1) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-500">
+      <div className="flex flex-col items-center justify-center gap-2 py-12 sm:py-16 text-slate-500">
         <Search size={32} />
         <p className="text-sm">No data</p>
       </div>
@@ -93,39 +93,39 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+    <div className="flex flex-col gap-2 sm:gap-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+        <div className="relative w-full max-w-full sm:max-w-sm">
+          <Search size={14} className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            placeholder="Search all columns..."
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-9 pr-3 text-sm text-slate-200 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            placeholder="Search..."
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 py-1.5 sm:py-2 pl-8 sm:pl-9 pr-3 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
         </div>
-        <span className="text-xs text-slate-500">
+        <span className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">
           {sortedFiltered.length} item{sortedFiltered.length !== 1 ? 's' : ''}
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-slate-800">
-        <table className="w-full border-collapse text-sm">
+      <div className="w-full overflow-x-auto relative rounded-lg border border-slate-800" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table className="w-full min-w-[600px] border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900">
               {onToggleSelection && (
-                <th className="sticky left-0 z-10 bg-slate-900 px-3 py-2.5 w-10" />
+                <th className="sticky left-0 z-10 bg-slate-900 px-2 sm:px-3 py-2 sm:py-2.5 w-8 sm:w-10" />
               )}
-              <th className="sticky left-0 z-10 bg-slate-900 px-3 py-2.5 text-left text-xs font-medium text-slate-400 w-10">#</th>
+              <th className="sticky left-0 z-10 bg-slate-900 px-2 sm:px-3 py-2 sm:py-2.5 text-left text-[10px] sm:text-xs font-medium text-slate-400 w-8 sm:w-10">#</th>
               {columns.map((col, i) => (
                 <th
                   key={col.id}
                   onClick={() => handleSort(i)}
-                  className="cursor-pointer select-none px-3 py-2.5 text-left text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
-                  style={{ minWidth: col.type ? COLUMN_DEFAULT_WIDTHS[col.type] ?? 140 : 140, maxWidth: 300 }}
+                  className="cursor-pointer select-none px-2 sm:px-3 py-2 sm:py-2.5 text-left text-[10px] sm:text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors whitespace-nowrap"
+                  style={{ minWidth: col.type ? (COLUMN_DEFAULT_WIDTHS[col.type] ?? 140) : 140, maxWidth: 250 }}
                 >
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5 sm:gap-1">
                     <span className="truncate">{headerRow[i] ?? col.label}</span>
                     {sortIcon(i)}
                   </div>
@@ -136,7 +136,7 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
           <tbody className="divide-y divide-slate-800">
             {paged.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (onToggleSelection ? 2 : 1)} className="px-3 py-12 text-center text-slate-500">
+                <td colSpan={columns.length + (onToggleSelection ? 2 : 1)} className="px-3 py-8 sm:py-12 text-center text-slate-500 text-sm">
                   No matching results
                 </td>
               </tr>
@@ -151,27 +151,27 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
                   >
                     {onToggleSelection && (
                       <td
-                        className="sticky left-0 z-10 bg-slate-950 px-3 py-2"
+                        className="sticky left-0 z-10 bg-slate-950 px-2 sm:px-3 py-1.5 sm:py-2"
                         onClick={(e) => {
                           e.stopPropagation();
                           onToggleSelection(globalRowIndex);
                         }}
                       >
                         {isSelected ? (
-                          <CheckSquare size={16} className="text-brand-400" />
+                          <CheckSquare size={14} className="sm:size-4 text-brand-400" />
                         ) : (
-                          <Square size={16} className="text-slate-600" />
+                          <Square size={14} className="sm:size-4 text-slate-600" />
                         )}
                       </td>
                     )}
                     <td
-                      className={`sticky z-10 bg-slate-950 px-3 py-2 text-xs tabular-nums text-slate-500 ${onToggleSelection ? 'left-10' : 'left-0'}`}
+                      className={`sticky z-10 bg-slate-950 px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-xs tabular-nums text-slate-500 ${onToggleSelection ? 'left-8 sm:left-10' : 'left-0'}`}
                       onClick={() => onRowClick(globalRowIndex)}
                     >
                       {globalRowIndex + 1}
                     </td>
                     {columns.map((col, ci) => (
-                      <td key={col.id} className="px-3 py-2" style={{ maxWidth: 300 }}>
+                      <td key={col.id} className="px-2 sm:px-3 py-1.5 sm:py-2 whitespace-nowrap" style={{ maxWidth: 250 }}>
                         <CellRenderer type={col.type} value={row[ci] ?? null} meta={col} />
                       </td>
                     ))}
@@ -185,25 +185,25 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-500">
+          <span className="text-[10px] sm:text-xs text-slate-500">
             Page {page + 1} of {totalPages}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1">
             <button
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
-              className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-0.5 sm:gap-1 rounded-md px-2 sm:px-2.5 py-1 sm:py-1.5 text-[10px] sm:text-xs text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={12} className="sm:size-3.5" />
               Prev
             </button>
             <button
               disabled={page >= totalPages - 1}
               onClick={() => setPage((p) => p + 1)}
-              className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-0.5 sm:gap-1 rounded-md px-2 sm:px-2.5 py-1 sm:py-1.5 text-[10px] sm:text-xs text-slate-400 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               Next
-              <ChevronRight size={14} />
+              <ChevronRight size={12} className="sm:size-3.5" />
             </button>
           </div>
         </div>
