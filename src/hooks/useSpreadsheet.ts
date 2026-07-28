@@ -1,38 +1,55 @@
-import { useMemo } from 'react';
-import { createSpreadsheet, batchGet, batchUpdate, getSpreadsheetMeta } from '../services/googleSheetsService';
-import { getCurrentUserRole } from '../services/googleDriveService';
+import { useMemo, useState } from 'react';
+import {
+  createSpreadsheet,
+  addSheetTab,
+  deleteSheetTab,
+  batchGet,
+  batchUpdate,
+  discoverSheetTabs,
+  pickAllDataSheets,
+} from '../services/googleSheetsService';
+import { getCurrentUserRole, deleteSpreadsheet } from '../services/googleDriveService';
 import { useGoogleAuth } from './useGoogleAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SYSTEM_SCHEMA_SHEET } from '../config/constants';
 import type { BatchUpdateRequest, ColumnMeta, ColumnType } from '../types/schema.types';
 import { validateColumnType } from './useSchemaValidator';
 
-export function parseSchemaMetadata(rows: string[][]): ColumnMeta[] {
+const SCHEMA_COLS: Record<string, number> = {
+  TAB_TITLE: 0,
+  COLUMN_INDEX: 1,
+  COLUMN_LABEL: 2,
+  COLUMN_TYPE: 3,
+  OPTIONS: 4,
+  REQUIRED: 5,
+};
+
+export function parseSchemaMetadata(rows: string[][], filterTab?: string): ColumnMeta[] {
   if (!rows || rows.length < 2) return [];
   const headers = rows[0].map((h) => String(h).trim().toUpperCase());
-  const colIdxHeader = headers.indexOf('COLUMN_INDEX');
-  const labelHeader = headers.indexOf('COLUMN_LABEL');
-  const typeHeader = headers.indexOf('COLUMN_TYPE');
-  const optsHeader = headers.indexOf('OPTIONS');
-  const reqHeader = headers.indexOf('REQUIRED');
 
-  return rows.slice(1).map((row, i) => {
-    const rawType = String(row[typeHeader] ?? 'Text').trim();
-    const type: ColumnType = validateColumnType(rawType) ? rawType : 'Text';
-    const optionsRaw = String(row[optsHeader] ?? '').trim();
-    const options = optionsRaw ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-    const required = ['TRUE', 'true', '1', 'yes'].includes(String(row[reqHeader] ?? '').trim().toLowerCase());
+  return rows.slice(1)
+    .filter((row) => {
+      if (!filterTab) return true;
+      return String(row[SCHEMA_COLS.TAB_TITLE] ?? '').trim() === filterTab;
+    })
+    .map((row, i) => {
+      const rawType = String(row[SCHEMA_COLS.COLUMN_TYPE] ?? 'Text').trim();
+      const type: ColumnType = validateColumnType(rawType) ? rawType : 'Text';
+      const optionsRaw = String(row[SCHEMA_COLS.OPTIONS] ?? '').trim();
+      const options = optionsRaw ? optionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+      const required = ['TRUE', 'true', '1', 'yes'].includes(String(row[SCHEMA_COLS.REQUIRED] ?? '').trim().toLowerCase());
 
-    return {
-      id: `col_${i}`,
-      sheetColumnIndex: Number(row[colIdxHeader]) ?? i,
-      type,
-      label: String(row[labelHeader] ?? `Column ${i}`).trim(),
-      required,
-      readonly: false,
-      options,
-    };
-  });
+      return {
+        id: `col_${i}`,
+        sheetColumnIndex: Number(row[SCHEMA_COLS.COLUMN_INDEX]) ?? i,
+        type,
+        label: String(row[SCHEMA_COLS.COLUMN_LABEL] ?? `Column ${i}`).trim(),
+        required,
+        readonly: false,
+        options,
+      };
+    });
 }
 
 export function useSpreadsheet(spreadsheetId: string) {
@@ -40,6 +57,7 @@ export function useSpreadsheet(spreadsheetId: string) {
   const queryClient = useQueryClient();
   const enabled = Boolean(accessToken && spreadsheetId);
   const userEmail = user?.email ?? '';
+  const [activeSheetName, setActiveSheetName] = useState<string | null>(null);
 
   const roleQuery = useQuery({
     queryKey: ['file-role', spreadsheetId, userEmail],
@@ -50,19 +68,27 @@ export function useSpreadsheet(spreadsheetId: string) {
 
   const isReadOnly = roleQuery.data === 'reader';
 
-  const metaQuery = useQuery({
-    queryKey: ['spreadsheet-meta', spreadsheetId],
-    queryFn: () => getSpreadsheetMeta(spreadsheetId),
+  const tabsQuery = useQuery({
+    queryKey: ['sheet-tabs', spreadsheetId],
+    queryFn: () => discoverSheetTabs(spreadsheetId),
     enabled,
     staleTime: 5 * 60_000,
   });
+
+  const allDataSheets = useMemo(() => pickAllDataSheets(tabsQuery.data ?? []), [tabsQuery.data]);
+
+  const resolvedSheetName = useMemo(() => {
+    if (activeSheetName && allDataSheets.includes(activeSheetName)) return activeSheetName;
+    if (allDataSheets.length > 0) return allDataSheets[0];
+    return null;
+  }, [activeSheetName, allDataSheets]);
 
   const schemaQuery = useQuery({
     queryKey: ['schema-data', spreadsheetId],
     queryFn: async () => {
       const res = await batchGet({
         spreadsheetId,
-        ranges: [`'${SYSTEM_SCHEMA_SHEET}'!A:Z`],
+        ranges: [`'${SYSTEM_SCHEMA_SHEET}'!A:F`],
         valueRenderOption: 'UNFORMATTED_VALUE',
       });
       return res.valueRanges[0]?.values ?? [];
@@ -72,21 +98,23 @@ export function useSpreadsheet(spreadsheetId: string) {
   });
 
   const columns: ColumnMeta[] = useMemo(
-    () => parseSchemaMetadata(schemaQuery.data ?? []),
-    [schemaQuery.data],
+    () => parseSchemaMetadata(schemaQuery.data ?? [], resolvedSheetName ?? undefined),
+    [schemaQuery.data, resolvedSheetName],
   );
 
   const inventoryQuery = useQuery({
-    queryKey: ['inventory-data', spreadsheetId],
+    queryKey: ['inventory-data', spreadsheetId, resolvedSheetName],
     queryFn: async () => {
+      if (!resolvedSheetName) return [];
+      const sheetRef = resolvedSheetName.includes(' ') ? `'${resolvedSheetName}'` : resolvedSheetName;
       const res = await batchGet({
         spreadsheetId,
-        ranges: ['Inventory!A:Z'],
+        ranges: [`${sheetRef}!A:Z`],
         valueRenderOption: 'FORMATTED_VALUE',
       });
       return res.valueRanges[0]?.values ?? [];
     },
-    enabled,
+    enabled: Boolean(enabled && resolvedSheetName),
     staleTime: 30_000,
   });
 
@@ -94,7 +122,7 @@ export function useSpreadsheet(spreadsheetId: string) {
     mutationFn: (params: BatchUpdateRequest) => batchUpdate(params),
     onMutate: async (params) => {
       await queryClient.cancelQueries({ queryKey: ['inventory-data', spreadsheetId] });
-      const previous = queryClient.getQueryData<string[][]>(['inventory-data', spreadsheetId]);
+      const previous = queryClient.getQueryData<string[][]>(['inventory-data', spreadsheetId, resolvedSheetName]);
 
       if (previous) {
         const optimistic = previous.map((row) => [...row]);
@@ -112,13 +140,13 @@ export function useSpreadsheet(spreadsheetId: string) {
             }
           }
         }
-        queryClient.setQueryData(['inventory-data', spreadsheetId], optimistic);
+        queryClient.setQueryData(['inventory-data', spreadsheetId, resolvedSheetName], optimistic);
       }
       return { previous };
     },
     onError: (_err, _params, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(['inventory-data', spreadsheetId], context.previous);
+        queryClient.setQueryData(['inventory-data', spreadsheetId, resolvedSheetName], context.previous);
       }
     },
     onSettled: () => {
@@ -126,10 +154,16 @@ export function useSpreadsheet(spreadsheetId: string) {
     },
   });
 
+  const makeRange = (sheet: string, colIndex: number, rowIndex: number) => {
+    const colChar = String.fromCharCode(65 + colIndex);
+    const sheetRef = sheet.includes(' ') ? `'${sheet}'` : sheet;
+    return `${sheetRef}!${colChar}${rowIndex + 1}`;
+  };
+
   const updateCell = (rowIndex: number, colIndex: number, value: string) => {
     if (isReadOnly) throw new Error('Read-only access: cannot modify data');
-    const colChar = String.fromCharCode(65 + colIndex);
-    const range = `Inventory!${colChar}${rowIndex + 1}`;
+    const sheet = resolvedSheetName ?? 'Sheet1';
+    const range = makeRange(sheet, colIndex, rowIndex);
     return updateMutation.mutateAsync({
       spreadsheetId,
       data: [{ range, majorDimension: 'ROWS', values: [[value]] }],
@@ -139,11 +173,12 @@ export function useSpreadsheet(spreadsheetId: string) {
 
   const updateCells = (rowIndex: number, updates: { colIndex: number; value: string }[]) => {
     if (isReadOnly) throw new Error('Read-only access: cannot modify data');
-    const data = updates.map(({ colIndex, value }) => {
-      const colChar = String.fromCharCode(65 + colIndex);
-      const range = `Inventory!${colChar}${rowIndex + 1}`;
-      return { range, majorDimension: 'ROWS' as const, values: [[value]] };
-    });
+    const sheet = resolvedSheetName ?? 'Sheet1';
+    const data = updates.map(({ colIndex, value }) => ({
+      range: makeRange(sheet, colIndex, rowIndex),
+      majorDimension: 'ROWS' as const,
+      values: [[value]],
+    }));
     return updateMutation.mutateAsync({
       spreadsheetId,
       data,
@@ -151,23 +186,60 @@ export function useSpreadsheet(spreadsheetId: string) {
     });
   };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['sheet-tabs', spreadsheetId] });
+    queryClient.invalidateQueries({ queryKey: ['schema-data', spreadsheetId] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-data', spreadsheetId] });
+    queryClient.invalidateQueries({ queryKey: ['file-role', spreadsheetId] });
+  };
+
+  const addTabMutation = useMutation({
+    mutationFn: ({
+      tabTitle,
+      columns: cols,
+    }: {
+      tabTitle: string;
+      columns: { label: string; type: string; required?: boolean; options?: string }[];
+    }) => addSheetTab(spreadsheetId, tabTitle, cols),
+    onSuccess: (_, vars) => {
+      setActiveSheetName(vars.tabTitle);
+      invalidateAll();
+    },
+  });
+
+  const deleteTabMutation = useMutation({
+    mutationFn: (tabTitle: string) => deleteSheetTab(spreadsheetId, tabTitle),
+    onSuccess: () => {
+      setActiveSheetName(null);
+      invalidateAll();
+    },
+  });
+
+  const deleteWorkbookMutation = useMutation({
+    mutationFn: () => deleteSpreadsheet(spreadsheetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['spreadsheets-list'] });
+    },
+  });
+
   return {
-    meta: metaQuery,
-    schema: schemaQuery,
+    sheets: allDataSheets,
+    activeSheetName: resolvedSheetName,
+    setActiveSheetName,
     columns,
     inventory: inventoryQuery,
+    tabs: tabsQuery,
+    schema: schemaQuery,
     role: roleQuery,
     isReadOnly,
     updateCell,
     updateCells,
     updateSheet: updateMutation,
     isSaving: updateMutation.isPending,
-    invalidateAll: () => {
-      queryClient.invalidateQueries({ queryKey: ['spreadsheet-meta', spreadsheetId] });
-      queryClient.invalidateQueries({ queryKey: ['schema-data', spreadsheetId] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-data', spreadsheetId] });
-      queryClient.invalidateQueries({ queryKey: ['file-role', spreadsheetId] });
-    },
+    addTab: addTabMutation,
+    deleteTab: deleteTabMutation,
+    deleteWorkbook: deleteWorkbookMutation,
+    invalidateAll,
   };
 }
 

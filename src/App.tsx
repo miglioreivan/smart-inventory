@@ -87,6 +87,16 @@ export default function App() {
     }
   };
 
+  const handleDeleteWorkbook = async () => {
+    if (!selectedId) return;
+    try {
+      await spreadsheet.deleteWorkbook.mutateAsync();
+      setSelectedId(null);
+    } catch {
+      // deletion failed silently
+    }
+  };
+
   return (
     <div className="flex min-h-screen">
       <aside className="w-56 flex-shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col">
@@ -142,6 +152,7 @@ export default function App() {
             spreadsheetId={selectedId}
             globalSearch={globalSearch}
             onFormModalChange={setFormModalOpen}
+            onDeleteWorkbook={handleDeleteWorkbook}
           />
         )}
         {view === 'search' && (

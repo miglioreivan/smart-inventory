@@ -57,3 +57,11 @@ export async function getCurrentUserRole(fileId: string, userEmail: string): Pro
   if (userPerm.role === 'writer') return 'writer';
   return 'reader';
 }
+
+export async function deleteSpreadsheet(fileId: string): Promise<void> {
+  const url = `${DRIVE_API_BASE}/files/${fileId}`;
+  const response = await authFetch(url, { method: 'DELETE' });
+  if (!response.ok && response.status !== 204) {
+    throw new Error(`Failed to delete spreadsheet: ${response.statusText}`);
+  }
+}

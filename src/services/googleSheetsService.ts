@@ -51,6 +51,17 @@ async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Respon
   return response;
 }
 
+async function authFetchRaw(url: string, init?: RequestInit): Promise<Response> {
+  enforceRateLimit();
+
+  const token = getGoogleAccessToken();
+  if (!token) throw new Error('Not authenticated: missing Google OAuth access token');
+
+  const headers = new Headers(init?.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return fetch(url, { ...init, headers });
+}
+
 export async function batchGet(params: BatchGetRequest): Promise<BatchGetResponse> {
   const { spreadsheetId, ranges, valueRenderOption = 'FORMATTED_VALUE', dateTimeRenderOption = 'FORMATTED_STRING' } = params;
   const encodedRanges = ranges.map((r) => encodeURIComponent(r)).join('&ranges=');
@@ -80,6 +91,27 @@ export async function batchUpdate(params: BatchUpdateRequest): Promise<BatchUpda
     totalUpdatedColumns: result.totalUpdatedColumns ?? 0,
     totalUpdatedCells: result.totalUpdatedCells ?? 0,
   };
+}
+
+export interface SheetTabInfo {
+  sheetId: number;
+  title: string;
+}
+
+export async function discoverSheetTabs(spreadsheetId: string): Promise<SheetTabInfo[]> {
+  const url = `${SHEETS_API_BASE}/${spreadsheetId}?fields=sheets.properties(sheetId,title)`;
+  const response = await authFetch(url);
+  const data = await response.json();
+  return (data.sheets ?? []).map((s: { properties: SheetTabInfo }) => s.properties);
+}
+
+export function pickDataSheet(tabs: SheetTabInfo[], schemaTabName = '_SYSTEM_SCHEMA'): string | null {
+  const dataTabs = tabs.filter((t) => t.title !== schemaTabName);
+  return dataTabs.length > 0 ? dataTabs[0].title : null;
+}
+
+export function pickAllDataSheets(tabs: SheetTabInfo[], schemaTabName = '_SYSTEM_SCHEMA'): string[] {
+  return tabs.filter((t) => t.title !== schemaTabName).map((t) => t.title);
 }
 
 export async function getSpreadsheetMeta(spreadsheetId: string) {
@@ -150,6 +182,26 @@ export class RateLimitError extends Error {
   }
 }
 
+function buildSchemaHeaderRows(): Record<string, unknown>[] {
+  return ['TAB_TITLE', 'COLUMN_INDEX', 'COLUMN_LABEL', 'COLUMN_TYPE', 'OPTIONS', 'REQUIRED'].map((h) => ({
+    userEnteredValue: { stringValue: h },
+    userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
+  }));
+}
+
+function buildSchemaRow(tabTitle: string, idx: number, label: string, type: string, options: string, required: boolean) {
+  return {
+    values: [
+      { userEnteredValue: { stringValue: tabTitle } },
+      { userEnteredValue: { numberValue: idx } },
+      { userEnteredValue: { stringValue: label } },
+      { userEnteredValue: { stringValue: type } },
+      { userEnteredValue: { stringValue: options } },
+      { userEnteredValue: { boolValue: required } },
+    ],
+  };
+}
+
 export async function createSpreadsheet(
   title: string,
   sheetName: string,
@@ -158,30 +210,32 @@ export async function createSpreadsheet(
   const token = getGoogleAccessToken();
   if (!token) throw new Error('Not authenticated: missing Google OAuth access token');
 
-  const sheetId = 0;
-  const schemaTabId = 1;
-  const headers = columns.map((c) => c.label);
-  const types = columns.map((c) => c.type);
-  const requireds = columns.map((c) => c.required ?? false);
-  const optionsList = columns.map((c) => c.options ?? '');
+  const body = {
+    properties: { title },
+    sheets: [{ properties: { title: sheetName } }],
+  };
 
-  const requests = [
-    {
-      addSheet: {
-        properties: {
-          title: sheetName,
-          sheetId,
-          gridProperties: { rowCount: 1000, columnCount: headers.length },
-        },
-      },
-    },
+  const createResponse = await authFetch(SHEETS_API_BASE, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+  const data = await createResponse.json();
+  const spreadsheetId = data.spreadsheetId;
+
+  const tabs = await discoverSheetTabs(spreadsheetId);
+  const dataSheet = tabs.find((t) => t.title === sheetName);
+  const schemaTabId = 2;
+  const dataSheetId = dataSheet?.sheetId ?? 0;
+
+  const batchRequests: Record<string, unknown>[] = [
     {
       addSheet: {
         properties: {
           title: '_SYSTEM_SCHEMA',
           sheetId: schemaTabId,
           hidden: true,
-          gridProperties: { rowCount: headers.length + 1, columnCount: 5 },
+          gridProperties: { rowCount: 1000, columnCount: 6 },
         },
       },
     },
@@ -189,99 +243,165 @@ export async function createSpreadsheet(
       updateCells: {
         rows: [
           {
-            values: headers.map((h) => ({
-              userEnteredValue: { stringValue: h },
+            values: columns.map((c) => ({
+              userEnteredValue: { stringValue: c.label },
               userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
             })),
           },
         ],
         fields: 'userEnteredValue,userEnteredFormat',
-        start: { sheetId, rowIndex: 0, columnIndex: 0 },
+        start: { sheetId: dataSheetId, rowIndex: 0, columnIndex: 0 },
+      },
+    },
+    {
+      updateCells: {
+        rows: [
+          { values: buildSchemaHeaderRows() },
+          ...columns.map((c, idx) =>
+            buildSchemaRow(sheetName, idx, c.label, c.type, c.options ?? '', c.required ?? false),
+          ),
+        ],
+        fields: 'userEnteredValue,userEnteredFormat',
+        start: { sheetId: schemaTabId, rowIndex: 0, columnIndex: 0 },
+      },
+    },
+  ];
+
+  await authFetchRaw(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({ requests: batchRequests }),
+    headers: { 'Content-Type': 'application/json' },
+  }).catch(() => {});
+
+  return { spreadsheetId, spreadsheetUrl: data.spreadsheetUrl };
+}
+
+export async function addSheetTab(
+  spreadsheetId: string,
+  tabTitle: string,
+  columns: { label: string; type: string; required?: boolean; options?: string }[],
+): Promise<void> {
+  const tabs = await discoverSheetTabs(spreadsheetId);
+  const existing = tabs.find((t) => t.title === tabTitle);
+  if (existing) throw new Error(`Tab "${tabTitle}" already exists`);
+
+  const maxId = tabs.reduce((max, t) => Math.max(max, t.sheetId), 0);
+  const newSheetId = maxId + 1;
+
+  const requests: Record<string, unknown>[] = [
+    {
+      addSheet: {
+        properties: {
+          title: tabTitle,
+          sheetId: newSheetId,
+          gridProperties: { rowCount: 1000, columnCount: columns.length },
+        },
       },
     },
     {
       updateCells: {
         rows: [
           {
-            values: ['COLUMN_INDEX', 'COLUMN_LABEL', 'COLUMN_TYPE', 'OPTIONS', 'REQUIRED'].map((h) => ({
-              userEnteredValue: { stringValue: h },
+            values: columns.map((c) => ({
+              userEnteredValue: { stringValue: c.label },
               userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.13, green: 0.14, blue: 0.17 } },
             })),
           },
-          ...headers.map((label, idx) => ({
-            values: [
-              { userEnteredValue: { numberValue: idx } },
-              { userEnteredValue: { stringValue: label } },
-              { userEnteredValue: { stringValue: types[idx] ?? 'Text' } },
-              { userEnteredValue: { stringValue: optionsList[idx] ?? '' } },
-              { userEnteredValue: { boolValue: requireds[idx] ?? false } },
-            ],
-          })),
         ],
-        fields: 'userEnteredValue',
-        start: { sheetId: schemaTabId, rowIndex: 0, columnIndex: 0 },
+        fields: 'userEnteredValue,userEnteredFormat',
+        start: { sheetId: newSheetId, rowIndex: 0, columnIndex: 0 },
       },
     },
   ];
 
-  const body = {
-    properties: { title },
-    sheets: [
-      {
-        properties: {
-          title: sheetName,
-          sheetId,
-          gridProperties: { rowCount: 1000, columnCount: headers.length },
-        },
-      },
-      {
-        properties: {
-          title: '_SYSTEM_SCHEMA',
-          sheetId: schemaTabId,
-          hidden: true,
-          gridProperties: { rowCount: headers.length + 1, columnCount: 5 },
-        },
-      },
-    ],
-  };
-
-  const createResponse = await fetch(SHEETS_API_BASE, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!createResponse.ok) {
-    const error: GoogleSheetsError = await createResponse.json().catch(() => ({
-      code: createResponse.status,
-      message: createResponse.statusText,
-      status: createResponse.statusText,
-    }));
-    throw new SheetsApiError(error);
-  }
-
-  const data = await createResponse.json();
-
-  try {
-    await fetch(`${SHEETS_API_BASE}/${data.spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ requests }),
+  const schemaTab = tabs.find((t) => t.title === '_SYSTEM_SCHEMA');
+  if (schemaTab) {
+    const schemaData = await batchGet({
+      spreadsheetId,
+      ranges: [`'_SYSTEM_SCHEMA'!A:F`],
+      valueRenderOption: 'UNFORMATTED_VALUE',
     });
-  } catch {
-    // spreadsheet created but schema setup failed — still return the ID
+    const currentRows = schemaData.valueRanges[0]?.values ?? [];
+    const nextRow = currentRows.length;
+
+    requests.push({
+      appendCells: {
+        sheetId: schemaTab.sheetId,
+        rows: columns.map((c, idx) => ({
+          values: [
+            { userEnteredValue: { stringValue: tabTitle } },
+            { userEnteredValue: { numberValue: idx } },
+            { userEnteredValue: { stringValue: c.label } },
+            { userEnteredValue: { stringValue: c.type } },
+            { userEnteredValue: { stringValue: c.options ?? '' } },
+            { userEnteredValue: { boolValue: c.required ?? false } },
+          ],
+        })),
+        fields: 'userEnteredValue',
+      },
+    });
   }
 
-  return {
-    spreadsheetId: data.spreadsheetId,
-    spreadsheetUrl: data.spreadsheetUrl,
-  };
+  await authFetchRaw(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({ requests }),
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export async function deleteSheetTab(
+  spreadsheetId: string,
+  tabTitle: string,
+): Promise<void> {
+  const tabs = await discoverSheetTabs(spreadsheetId);
+  const target = tabs.find((t) => t.title === tabTitle);
+  if (!target) throw new Error(`Tab "${tabTitle}" not found`);
+
+  const dataTabs = tabs.filter((t) => t.title !== '_SYSTEM_SCHEMA');
+  if (dataTabs.length <= 1) throw new Error('Cannot delete the last visible tab');
+
+  const requests: Record<string, unknown>[] = [
+    { deleteSheet: { sheetId: target.sheetId } },
+  ];
+
+  const schemaTab = tabs.find((t) => t.title === '_SYSTEM_SCHEMA');
+  if (schemaTab) {
+    const schemaData = await batchGet({
+      spreadsheetId,
+      ranges: [`'_SYSTEM_SCHEMA'!A:F`],
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    });
+    const schemaRows = schemaData.valueRanges[0]?.values ?? [];
+    const tabTitleIdx = schemaRows[0]?.findIndex((h: string) => String(h).trim().toUpperCase() === 'TAB_TITLE');
+
+    if (tabTitleIdx >= 0) {
+      const rowsToDelete: number[] = [];
+      schemaRows.forEach((row: string[], i: number) => {
+        if (i > 0 && String(row[tabTitleIdx] ?? '').trim() === tabTitle) {
+          rowsToDelete.push(i);
+        }
+      });
+
+      if (rowsToDelete.length > 0) {
+        requests.push({
+          deleteDimension: {
+            range: {
+              sheetId: schemaTab.sheetId,
+              dimension: 'ROWS',
+              startIndex: rowsToDelete[0],
+              endIndex: rowsToDelete[rowsToDelete.length - 1] + 1,
+            },
+          },
+        });
+      }
+    }
+  }
+
+  await authFetchRaw(`${SHEETS_API_BASE}/${spreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({ requests }),
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 export class SheetsApiError extends Error {
