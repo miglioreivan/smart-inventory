@@ -36,7 +36,7 @@ export function UnifiedSearch({ allRows }: UnifiedSearchProps) {
     setCameraActive(false);
   }, []);
 
-  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera, activeCameraId } = useHybridScanner({
+  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, flipCamera, cameraMode } = useHybridScanner({
     onGlobalScan: handleGlobalScan,
     mode: 'search',
     enabled: true,
@@ -94,7 +94,7 @@ export function UnifiedSearch({ allRows }: UnifiedSearchProps) {
   const locationMatches = results.filter((r) => r.type === 'location');
   const productMatches = results.filter((r) => r.type === 'product');
 
-  const showFlip = availableCameras.length > 1 && cameraActive;
+  const showFlip = cameraActive;
 
   return (
     <div className="flex flex-col gap-4">
@@ -176,7 +176,7 @@ export function UnifiedSearch({ allRows }: UnifiedSearchProps) {
         active={cameraActive}
         onScan={(barcode) => handleGlobalScan({ barcode, source: 'camera', timestamp: Date.now() })}
         onError={() => setCameraActive(false)}
-        cameraId={activeCameraId}
+        cameraMode={cameraMode}
       />
 
       {cameraError && <p className="text-xs text-red-400">{cameraError}</p>}

@@ -17,12 +17,6 @@ interface UseHybridScannerOptions {
   scanDebounceMs?: number;
 }
 
-const REAR_CAMERA_KEYWORDS = ['back', 'rear', 'environment', 'posteriore', 'facing back', 'facing rear'];
-
-function isRearCamera(label: string): boolean {
-  return REAR_CAMERA_KEYWORDS.some((kw) => label.toLowerCase().includes(kw));
-}
-
 export function useHybridScanner({
   onGlobalScan,
   mode = 'search',
@@ -32,8 +26,7 @@ export function useHybridScanner({
   const [lastScan, setLastScan] = useState<ScanEvent | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [availableCameras, setAvailableCameras] = useState<{id: string, label: string}[]>([]);
-  const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+  const [cameraMode, setCameraMode] = useState<'environment' | 'user'>('environment');
 
   const isMounted = useRef(true);
   const onGlobalScanRef = useRef(onGlobalScan);
@@ -118,35 +111,17 @@ export function useHybridScanner({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [emitScan]);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(() => {
     setCameraError(null);
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices.length === 0) throw new Error('No cameras found');
-
-      setAvailableCameras(devices.map(d => ({ id: d.id, label: d.label })));
-      
-      let rearIdx = devices.findIndex((d) => isRearCamera(d.label));
-      if (rearIdx < 0) rearIdx = devices.length - 1;
-
-      setActiveCameraId(devices[rearIdx].id);
-      setIsCameraActive(true);
-    } catch (err) {
-      setCameraError(err instanceof Error ? err.message : 'Camera access denied');
-      setIsCameraActive(false);
-    }
+    setIsCameraActive(true);
   }, []);
 
-  const flipCamera = useCallback(async () => {
-    if (availableCameras.length < 2) return;
-    const currentIdx = availableCameras.findIndex(c => c.id === activeCameraId);
-    const nextIdx = (currentIdx + 1) % availableCameras.length;
-    setActiveCameraId(availableCameras[nextIdx].id);
-  }, [availableCameras, activeCameraId]);
+  const flipCamera = useCallback(() => {
+    setCameraMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+  }, []);
 
   const stopCamera = useCallback(() => {
     setIsCameraActive(false);
-    // Non azzeriamo l'activeCameraId così alla riaccensione ricorda l'ultima fotocamera usata
   }, []);
 
   return {
@@ -156,8 +131,8 @@ export function useHybridScanner({
     lastScan,
     clearLastScan: () => setLastScan(null),
     cameraError,
-    availableCameras: availableCameras.map(c => c.id), // backward compat per i componenti parent
-    activeCameraId,
+    availableCameras: [] as string[],
+    cameraMode,
     flipCamera,
   };
 }

@@ -29,7 +29,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
     [mode, onProductScanned, onBoxScanned],
   );
 
-  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera, activeCameraId } = useHybridScanner({
+  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, flipCamera, cameraMode } = useHybridScanner({
     onGlobalScan: handleScan,
     enabled: true,
   });
@@ -62,7 +62,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
     }
   }, [showManual]);
 
-  const showFlipButton = availableCameras.length > 1;
+  const showFlipButton = true;
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4">
@@ -132,7 +132,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
         active={cameraActive}
         onScan={(barcode) => handleScan({ barcode, source: 'camera', timestamp: Date.now() })}
         onError={() => setCameraActive(false)}
-        cameraId={activeCameraId}
+        cameraMode={cameraMode}
       />
 
       {cameraError && (

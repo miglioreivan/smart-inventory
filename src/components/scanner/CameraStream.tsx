@@ -8,7 +8,7 @@ interface CameraStreamProps {
   active: boolean;
   onScan: (barcode: string) => void;
   onError: (error: string) => void;
-  cameraId?: string | null;
+  cameraMode?: 'environment' | 'user';
 }
 
 const VIEWPORT_ID = 'camera-stream-viewport';
@@ -16,14 +16,9 @@ const VIEWPORT_ID = 'camera-stream-viewport';
 const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
   Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
 ];
 
-export function CameraStream({ active, onScan, onError, cameraId }: CameraStreamProps) {
+export function CameraStream({ active, onScan, onError, cameraMode = 'environment' }: CameraStreamProps) {
   const [status, setStatus] = useState<'loading' | 'active' | 'error'>('loading');
   const isMounted = useRef(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -68,12 +63,11 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
       try {
         scannerRef.current = new Html5Qrcode(VIEWPORT_ID, {
           formatsToSupport: SUPPORTED_FORMATS,
+          useBarCodeDetectorIfSupported: true,
           verbose: false,
         });
 
-        const videoConstraints = cameraId 
-          ? { deviceId: { exact: cameraId } } 
-          : { facingMode: 'environment' };
+        const videoConstraints = { facingMode: cameraMode };
 
         await scannerRef.current.start(
           videoConstraints,
@@ -111,7 +105,7 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
         }).catch((err) => console.warn(LOG_PREFIX, 'Unmount stop error', err));
       }
     };
-  }, [active, cameraId]);
+  }, [active, cameraMode]);
 
   if (!active) {
     return (
