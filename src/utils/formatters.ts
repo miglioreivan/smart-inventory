@@ -32,7 +32,7 @@ export function parseISODate(value: string): Date | null {
   return isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function formatColor(value: string, format: 'hex' | 'rgb' = 'hex'): string {
+export function formatColor(value: string): string {
   return value.startsWith('#') ? value : `#${value}`;
 }
 

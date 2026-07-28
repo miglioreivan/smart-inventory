@@ -5,7 +5,7 @@ import { ProductDetailModal } from './ProductDetailModal';
 import { SpreadsheetSelector } from './SpreadsheetSelector';
 import { SmartBoxView } from '../scanner/SmartBoxView';
 import { BarcodePrinter } from '../scanner/BarcodePrinter';
-import { Loader2, Sheet, Table2, Scan, Printer } from 'lucide-react';
+import { Loader2, Sheet, Table2, Scan, Printer, EyeOff } from 'lucide-react';
 
 type TabKey = 'inventory' | 'scanner';
 
@@ -64,13 +64,13 @@ export function InventoryView() {
     [spreadsheet, barcodeColIndex, locationColIndex],
   );
 
-  const _toggleRowSelection = useCallback((_rowIndex: number) => {
+  const toggleRowSelection = useCallback((rowIndex: number) => {
     setSelectedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(_rowIndex)) {
-        next.delete(_rowIndex);
+      if (next.has(rowIndex)) {
+        next.delete(rowIndex);
       } else {
-        next.add(_rowIndex);
+        next.add(rowIndex);
       }
       return next;
     });
@@ -133,6 +133,12 @@ export function InventoryView() {
             <h2 className="text-lg font-semibold text-slate-100">
               {spreadsheet.meta.data?.title ?? 'Inventory'}
             </h2>
+            {spreadsheet.isReadOnly && (
+              <span className="flex items-center gap-1 rounded-full bg-yellow-500/10 px-2.5 py-0.5 text-xs text-yellow-400">
+                <EyeOff size={12} />
+                Read-only
+              </span>
+            )}
             {spreadsheet.isSaving && (
               <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs text-amber-400">
                 <Loader2 size={12} className="animate-spin" />
@@ -183,6 +189,8 @@ export function InventoryView() {
               rows={spreadsheet.inventory.data ?? []}
               loading={isLoading}
               onRowClick={handleRowClick}
+              selectedRows={selectedRows}
+              onToggleSelection={toggleRowSelection}
             />
 
             {selectedRow && detailRowIndex !== null && (
@@ -194,6 +202,7 @@ export function InventoryView() {
                 columns={spreadsheet.columns}
                 onSave={handleSave}
                 saving={spreadsheet.isSaving}
+                readOnly={spreadsheet.isReadOnly}
               />
             )}
           </>

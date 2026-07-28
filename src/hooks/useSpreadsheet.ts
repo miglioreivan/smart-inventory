@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { createSpreadsheet, batchGet, batchUpdate, getSpreadsheetMeta } from '../services/googleSheetsService';
+import { getCurrentUserRole } from '../services/googleDriveService';
 import { useGoogleAuth } from './useGoogleAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SYSTEM_SCHEMA_SHEET } from '../config/constants';
@@ -35,9 +36,19 @@ export function parseSchemaMetadata(rows: string[][]): ColumnMeta[] {
 }
 
 export function useSpreadsheet(spreadsheetId: string) {
-  const { accessToken } = useGoogleAuth();
+  const { accessToken, user } = useGoogleAuth();
   const queryClient = useQueryClient();
   const enabled = Boolean(accessToken && spreadsheetId);
+  const userEmail = user?.email ?? '';
+
+  const roleQuery = useQuery({
+    queryKey: ['file-role', spreadsheetId, userEmail],
+    queryFn: () => getCurrentUserRole(spreadsheetId, userEmail),
+    enabled: Boolean(enabled && userEmail),
+    staleTime: 2 * 60_000,
+  });
+
+  const isReadOnly = roleQuery.data === 'reader';
 
   const metaQuery = useQuery({
     queryKey: ['spreadsheet-meta', spreadsheetId],
@@ -116,6 +127,7 @@ export function useSpreadsheet(spreadsheetId: string) {
   });
 
   const updateCell = (rowIndex: number, colIndex: number, value: string) => {
+    if (isReadOnly) throw new Error('Read-only access: cannot modify data');
     const colChar = String.fromCharCode(65 + colIndex);
     const range = `Inventory!${colChar}${rowIndex + 1}`;
     return updateMutation.mutateAsync({
@@ -126,6 +138,7 @@ export function useSpreadsheet(spreadsheetId: string) {
   };
 
   const updateCells = (rowIndex: number, updates: { colIndex: number; value: string }[]) => {
+    if (isReadOnly) throw new Error('Read-only access: cannot modify data');
     const data = updates.map(({ colIndex, value }) => {
       const colChar = String.fromCharCode(65 + colIndex);
       const range = `Inventory!${colChar}${rowIndex + 1}`;
@@ -143,6 +156,8 @@ export function useSpreadsheet(spreadsheetId: string) {
     schema: schemaQuery,
     columns,
     inventory: inventoryQuery,
+    role: roleQuery,
+    isReadOnly,
     updateCell,
     updateCells,
     updateSheet: updateMutation,
@@ -151,6 +166,7 @@ export function useSpreadsheet(spreadsheetId: string) {
       queryClient.invalidateQueries({ queryKey: ['spreadsheet-meta', spreadsheetId] });
       queryClient.invalidateQueries({ queryKey: ['schema-data', spreadsheetId] });
       queryClient.invalidateQueries({ queryKey: ['inventory-data', spreadsheetId] });
+      queryClient.invalidateQueries({ queryKey: ['file-role', spreadsheetId] });
     },
   };
 }

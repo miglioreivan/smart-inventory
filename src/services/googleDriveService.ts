@@ -49,3 +49,14 @@ export async function getFileRole(fileId: string): Promise<DrivePermission | nul
   const permissions = await listPermissions(fileId);
   return permissions[0] ?? null;
 }
+
+export async function getCurrentUserRole(fileId: string, userEmail: string): Promise<'owner' | 'writer' | 'reader' | null> {
+  const permissions = await listPermissions(fileId);
+  const userPerm = permissions.find(
+    (p) => p.emailAddress?.toLowerCase() === userEmail.toLowerCase(),
+  );
+  if (!userPerm) return null;
+  if (userPerm.role === 'owner' || userPerm.role === 'fileOrganizer' || userPerm.role === 'organizer') return 'owner';
+  if (userPerm.role === 'writer') return 'writer';
+  return 'reader';
+}

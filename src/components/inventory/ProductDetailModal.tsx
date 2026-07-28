@@ -3,7 +3,7 @@ import type { ColumnMeta } from '../../types/schema.types';
 import { Modal } from '../common/Modal';
 import { CellEditor } from '../columns/CellEditor';
 import { CellRenderer } from '../columns/CellRenderer';
-import { Save, Edit3, X } from 'lucide-react';
+import { Save, Edit3, X, EyeOff } from 'lucide-react';
 
 interface ProductDetailModalProps {
   open: boolean;
@@ -13,6 +13,7 @@ interface ProductDetailModalProps {
   columns: ColumnMeta[];
   onSave: (rowIndex: number, updates: { colIndex: number; value: string }[]) => void;
   saving: boolean;
+  readOnly?: boolean;
 }
 
 export function ProductDetailModal({
@@ -23,6 +24,7 @@ export function ProductDetailModal({
   columns,
   onSave,
   saving,
+  readOnly = false,
 }: ProductDetailModalProps) {
   const [editingField, setEditingField] = useState<number | null>(null);
   const [localValues, setLocalValues] = useState<Record<number, string>>({});
@@ -111,14 +113,18 @@ export function ProductDetailModal({
                     />
                   ) : (
                     <div
-                      onClick={() => startEdit(ci)}
-                      className="cursor-pointer rounded-md px-2 py-1.5 -mx-2 -my-1 hover:bg-slate-800/50 transition-colors group"
+                      onClick={() => { if (!readOnly) startEdit(ci); }}
+                      className={`rounded-md px-2 py-1.5 -mx-2 -my-1 transition-colors group ${
+                        readOnly ? '' : 'cursor-pointer hover:bg-slate-800/50'
+                      }`}
                     >
                       <div className="flex items-center gap-2">
                         <span className="min-w-0 flex-1">
                           <CellRenderer type={col.type} value={currentValue as string} meta={col} />
                         </span>
-                        <Edit3 size={14} className="flex-shrink-0 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        {!readOnly && (
+                          <Edit3 size={14} className="flex-shrink-0 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
                       </div>
                     </div>
                   )}
@@ -135,25 +141,34 @@ export function ProductDetailModal({
         </div>
 
         <div className="flex items-center justify-between border-t border-slate-800 pt-4">
-          <span className="text-xs text-slate-500">
-            {pendingChanges.length} field{pendingChanges.length !== 1 ? 's' : ''} modified
-          </span>
+          {readOnly ? (
+            <span className="flex items-center gap-1.5 text-xs text-yellow-400">
+              <EyeOff size={14} />
+              Read-only access — contact the owner to edit
+            </span>
+          ) : (
+            <span className="text-xs text-slate-500">
+              {pendingChanges.length} field{pendingChanges.length !== 1 ? 's' : ''} modified
+            </span>
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
               className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm text-slate-400 hover:bg-slate-800"
             >
               <X size={16} />
-              Cancel
+              Close
             </button>
-            <button
-              onClick={handleSave}
-              disabled={pendingChanges.length === 0 || saving}
-              className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:pointer-events-none disabled:opacity-50"
-            >
-              <Save size={16} />
-              {saving ? 'Saving...' : 'Save changes'}
-            </button>
+            {!readOnly && (
+              <button
+                onClick={handleSave}
+                disabled={pendingChanges.length === 0 || saving}
+                className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Save size={16} />
+                {saving ? 'Saving...' : 'Save changes'}
+              </button>
+            )}
           </div>
         </div>
       </div>

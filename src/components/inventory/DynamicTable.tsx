@@ -2,18 +2,20 @@ import { useState, useMemo, useCallback } from 'react';
 import type { ColumnMeta } from '../../types/schema.types';
 import { CellRenderer } from '../columns/CellRenderer';
 import { COLUMN_DEFAULT_WIDTHS, PAGINATION_DEFAULT_SIZE } from '../../config/constants';
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Search, CheckSquare, Square } from 'lucide-react';
 
 interface DynamicTableProps {
   columns: ColumnMeta[];
   rows: string[][];
   loading: boolean;
   onRowClick: (rowIndex: number) => void;
+  selectedRows?: Set<number>;
+  onToggleSelection?: (rowIndex: number) => void;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
 
-export function DynamicTable({ columns, rows, loading, onRowClick }: DynamicTableProps) {
+export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows, onToggleSelection }: DynamicTableProps) {
   const [sortKey, setSortKey] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [search, setSearch] = useState('');
@@ -104,6 +106,9 @@ export function DynamicTable({ columns, rows, loading, onRowClick }: DynamicTabl
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900">
+              {onToggleSelection && (
+                <th className="sticky left-0 z-10 bg-slate-900 px-3 py-2.5 w-10" />
+              )}
               <th className="sticky left-0 z-10 bg-slate-900 px-3 py-2.5 text-left text-xs font-medium text-slate-400 w-10">#</th>
               {columns.map((col, i) => (
                 <th
@@ -123,20 +128,37 @@ export function DynamicTable({ columns, rows, loading, onRowClick }: DynamicTabl
           <tbody className="divide-y divide-slate-800">
             {paged.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-3 py-12 text-center text-slate-500">
+                <td colSpan={columns.length + (onToggleSelection ? 2 : 1)} className="px-3 py-12 text-center text-slate-500">
                   No matching results
                 </td>
               </tr>
             ) : (
               paged.map((row, ri) => {
                 const globalRowIndex = page * PAGINATION_DEFAULT_SIZE + ri + 1;
+                const isSelected = selectedRows?.has(globalRowIndex) ?? false;
                 return (
                   <tr
                     key={globalRowIndex}
-                    onClick={() => onRowClick(globalRowIndex)}
                     className="cursor-pointer transition-colors hover:bg-slate-800/50"
                   >
-                    <td className="sticky left-0 z-10 bg-slate-950 px-3 py-2 text-xs tabular-nums text-slate-500">
+                    {onToggleSelection && (
+                      <td
+                        className="sticky left-0 z-10 bg-slate-950 px-3 py-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleSelection(globalRowIndex);
+                        }}
+                      >
+                        {isSelected ? (
+                          <CheckSquare size={16} className="text-brand-400" />
+                        ) : (
+                          <Square size={16} className="text-slate-600" />
+                        )}
+                      </td>
+                    )}
+                    <td
+                      className={`sticky z-10 bg-slate-950 px-3 py-2 text-xs tabular-nums text-slate-500 ${onToggleSelection ? 'left-10' : 'left-0'}`}
+                      onClick={() => onRowClick(globalRowIndex)}
                       {globalRowIndex + 1}
                     </td>
                     {columns.map((col, ci) => (
