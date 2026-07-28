@@ -1,16 +1,26 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
-import { InventoryView } from './components/inventory/InventoryView';
-import { UnifiedSearch } from './components/scanner/UnifiedSearch';
-import { LocationManager } from './components/scanner/LocationManager';
 import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
 import { useSpreadsheet } from './hooks/useSpreadsheet';
 import { useHybridScanner } from './hooks/useHybridScanner';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import type { ScannerMode } from './hooks/useHybridScanner';
 import type { ScanEvent } from './types/inventory.types';
-import { PackageSearch, Table2, Search, MapPin, LogOut, Menu, X } from 'lucide-react';
+import { PackageSearch, Table2, Search, MapPin, LogOut, Menu, X, Loader2 } from 'lucide-react';
+
+const InventoryView = lazy(() => import('./components/inventory/InventoryView').then((m) => ({ default: m.InventoryView })));
+const UnifiedSearch = lazy(() => import('./components/scanner/UnifiedSearch').then((m) => ({ default: m.UnifiedSearch })));
+const LocationManager = lazy(() => import('./components/scanner/LocationManager').then((m) => ({ default: m.LocationManager })));
 
 type ViewKey = 'inventory' | 'search' | 'locations';
+
+function ViewLoader() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Loader2 size={24} className="animate-spin text-brand-500" />
+    </div>
+  );
+}
 
 export default function App() {
   const { user, loading, error, signIn, signOut } = useGoogleAuth();
@@ -61,8 +71,6 @@ export default function App() {
     );
   }
 
-  }
-
   const handleDeleteWorkbook = async () => {
     if (!selectedId) return;
     try {
@@ -77,7 +85,7 @@ export default function App() {
       .filter((t: { title: string }) => t.title !== '_SYSTEM_SCHEMA')
       .map((t: { title: string }) => ({
         tabTitle: t.title,
-        rows: (spreadsheet.inventory.data ?? []),
+        rows: spreadsheet.inventory.data ?? [],
         columns: spreadsheet.columns,
       }));
   }, [spreadsheet.tabs.data, spreadsheet.inventory.data, spreadsheet.columns]);
@@ -181,18 +189,28 @@ export default function App() {
         </header>
 
         <main className="flex-1 p-3 sm:p-4 lg:p-6 overflow-auto">
-          {view === 'inventory' && (
-            <InventoryView
-              spreadsheetId={selectedId}
-              globalSearch={globalSearch}
-              onFormModalChange={setFormModalOpen}
-              onDeleteWorkbook={handleDeleteWorkbook}
-            />
-          )}
-          {view === 'search' && (
-            <UnifiedSearch allRows={allRows} />
-          )}
-          {view === 'locations' && <LocationManager />}
+          <ErrorBoundary>
+            {view === 'inventory' && (
+              <Suspense fallback={<ViewLoader />}>
+                <InventoryView
+                  spreadsheetId={selectedId}
+                  globalSearch={globalSearch}
+                  onFormModalChange={setFormModalOpen}
+                  onDeleteWorkbook={handleDeleteWorkbook}
+                />
+              </Suspense>
+            )}
+            {view === 'search' && (
+              <Suspense fallback={<ViewLoader />}>
+                <UnifiedSearch allRows={allRows} />
+              </Suspense>
+            )}
+            {view === 'locations' && (
+              <Suspense fallback={<ViewLoader />}>
+                <LocationManager />
+              </Suspense>
+            )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
