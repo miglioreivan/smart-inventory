@@ -74,12 +74,13 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
 
         scannerRef.current = new Html5Qrcode(VIEWPORT_ID, {
           formatsToSupport: SUPPORTED_FORMATS,
+          useBarCodeDetectorIfSupported: true,
           verbose: false,
         });
 
         const videoConstraints: MediaTrackConstraints = cameraId
-          ? { deviceId: { exact: cameraId } }
-          : { facingMode: 'environment' };
+          ? { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] }
+          : { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] };
         console.info(LOG_PREFIX, 'starting camera with', cameraId ? `deviceId: "${cameraId}"` : 'facingMode: "environment"');
 
         await scannerRef.current.start(

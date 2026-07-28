@@ -215,11 +215,12 @@ export function useHybridScanner({
     log('info', `initializing Html5Qrcode with ${SUPPORTED_FORMATS.length} format(s)`);
     scannerRef.current = new Html5Qrcode(CAMERA_ELEMENT_ID, {
       formatsToSupport: SUPPORTED_FORMATS,
+      useBarCodeDetectorIfSupported: true,
       verbose: false,
     });
 
     await scannerRef.current.start(
-      { deviceId: { exact: cameraId } },
+      { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 }, advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] },
       {
         fps: 10,
         qrbox: { width: 300, height: 150 },
