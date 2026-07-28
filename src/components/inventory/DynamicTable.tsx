@@ -159,6 +159,7 @@ export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows,
                     <td
                       className={`sticky z-10 bg-slate-950 px-3 py-2 text-xs tabular-nums text-slate-500 ${onToggleSelection ? 'left-10' : 'left-0'}`}
                       onClick={() => onRowClick(globalRowIndex)}
+                    >
                       {globalRowIndex + 1}
                     </td>
                     {columns.map((col, ci) => (
