@@ -1,4 +1,4 @@
-import { getGoogleAccessToken } from '../config/firebase';
+import { getGoogleAccessToken, signOutUser } from '../config/firebase';
 import type {
   BatchGetRequest,
   BatchGetResponse,
@@ -40,6 +40,9 @@ async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Respon
   const response = await fetch(input, { ...init, headers });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      signOutUser().catch(() => {});
+    }
     const error: GoogleSheetsError = await response.json().catch(() => ({
       code: response.status,
       message: response.statusText,

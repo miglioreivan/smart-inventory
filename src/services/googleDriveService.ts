@@ -1,4 +1,4 @@
-import { getGoogleAccessToken } from '../config/firebase';
+import { getGoogleAccessToken, signOutUser } from '../config/firebase';
 
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3';
 
@@ -9,7 +9,11 @@ async function authFetch(input: RequestInfo, init?: RequestInit): Promise<Respon
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   headers.set('Content-Type', 'application/json');
-  return fetch(input, { ...init, headers });
+  const response = await fetch(input, { ...init, headers });
+  if (response.status === 401) {
+    signOutUser().catch(() => {});
+  }
+  return response;
 }
 
 export interface DrivePermission {

@@ -86,7 +86,6 @@ export function CameraStream({ active, onScan, onError, cameraId }: CameraStream
           videoConstraints,
           {
             fps: 10,
-            aspectRatio: 1,
           },
           (decodedText) => {
             if (!cancelled && isMounted.current) {

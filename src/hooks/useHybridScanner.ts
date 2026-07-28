@@ -222,7 +222,6 @@ export function useHybridScanner({
       { deviceId: { exact: cameraId } },
       {
         fps: 10,
-        aspectRatio: 1,
       },
       (decodedText) => {
         if (isMounted.current) {

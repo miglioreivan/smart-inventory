@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, signInWithGoogle, signOutUser, getGoogleAccessToken } from '../config/firebase';
+import { auth, signInWithGoogle, signOutUser, getGoogleAccessToken, handleRedirectResult } from '../config/firebase';
 
 interface AuthState {
   user: User | null;
@@ -22,29 +22,49 @@ export function useGoogleAuth(): AuthState & {
   }));
 
   useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        const token = await handleRedirectResult();
+        if (token && !cancelled) {
+          setState((prev) => ({ ...prev, accessToken: token }));
+        }
+      } catch {}
+    };
+    init();
+
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => {
         if (user) {
           const token = getGoogleAccessToken();
-          setState({ user, loading: false, error: null, accessToken: token });
+          if (!cancelled) {
+            setState({ user, loading: false, error: null, accessToken: token });
+          }
         } else {
-          setState({ user: null, loading: false, error: null, accessToken: null });
+          if (!cancelled) {
+            setState({ user: null, loading: false, error: null, accessToken: null });
+          }
         }
       },
       (err) => {
-        setState({ user: null, loading: false, error: err as Error, accessToken: null });
+        if (!cancelled) {
+          setState({ user: null, loading: false, error: err as Error, accessToken: null });
+        }
       },
     );
 
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const signIn = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const token = await signInWithGoogle();
-      setState((prev) => ({ ...prev, loading: false, accessToken: token }));
+      await signInWithGoogle();
     } catch (err) {
       setState((prev) => ({ ...prev, loading: false, error: err as Error, accessToken: null }));
     }
