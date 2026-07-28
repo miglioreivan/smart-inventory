@@ -2,22 +2,27 @@ import { useState, useCallback, useMemo } from 'react';
 import { useSpreadsheet } from '../../hooks/useSpreadsheet';
 import { DynamicTable } from './DynamicTable';
 import { ProductDetailModal } from './ProductDetailModal';
+import { AddProductModal } from './AddProductModal';
 import { BarcodePrinter } from '../scanner/BarcodePrinter';
-import { Loader2, Sheet, Printer, EyeOff } from 'lucide-react';
+import { Loader2, Sheet, Printer, EyeOff, Plus } from 'lucide-react';
 
 interface InventoryViewProps {
   spreadsheetId: string | null;
+  globalSearch?: string;
+  onFormModalChange?: (open: boolean) => void;
 }
 
-export function InventoryView({ spreadsheetId }: InventoryViewProps) {
+export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange }: InventoryViewProps) {
   const spreadsheet = useSpreadsheet(spreadsheetId ?? '');
   const [detailRowIndex, setDetailRowIndex] = useState<number | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [showPrinter, setShowPrinter] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const handleRowClick = useCallback((rowIndex: number) => {
     setDetailRowIndex(rowIndex);
-  }, []);
+    onFormModalChange?.(true);
+  }, [onFormModalChange]);
 
   const handleSave = useCallback(
     async (rowIndex: number, updates: { colIndex: number; value: string }[]) => {
@@ -117,6 +122,18 @@ export function InventoryView({ spreadsheetId }: InventoryViewProps) {
               Saving
             </span>
           )}
+            {!spreadsheet.isReadOnly && (
+            <button
+              onClick={() => {
+                setShowAddForm(true);
+                onFormModalChange?.(true);
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-500"
+            >
+              <Plus size={14} />
+              Aggiungi
+            </button>
+          )}
         </div>
 
         {selectedRows.size > 0 && (
@@ -137,18 +154,36 @@ export function InventoryView({ spreadsheetId }: InventoryViewProps) {
         onRowClick={handleRowClick}
         selectedRows={selectedRows}
         onToggleSelection={toggleRowSelection}
+        externalSearch={globalSearch}
       />
 
       {selectedRow && detailRowIndex !== null && (
         <ProductDetailModal
           open
-          onClose={() => setDetailRowIndex(null)}
+          onClose={() => {
+            setDetailRowIndex(null);
+            onFormModalChange?.(false);
+          }}
           rowIndex={detailRowIndex}
           row={selectedRow}
           columns={spreadsheet.columns}
           onSave={handleSave}
           saving={spreadsheet.isSaving}
           readOnly={spreadsheet.isReadOnly}
+        />
+      )}
+
+      {showAddForm && (
+        <AddProductModal
+          open
+          onClose={() => {
+            setShowAddForm(false);
+            onFormModalChange?.(false);
+          }}
+          spreadsheetId={spreadsheetId}
+          sheetName="Inventory"
+          columns={spreadsheet.columns}
+          onSuccess={() => spreadsheet.invalidateAll()}
         />
       )}
 

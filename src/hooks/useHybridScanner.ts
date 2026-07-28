@@ -8,8 +8,11 @@ import {
   HARDWARE_SCAN_SUFFIX,
 } from '../config/constants';
 
+export type ScannerMode = 'search' | 'form';
+
 interface UseHybridScannerOptions {
-  onScan: (event: ScanEvent) => void;
+  onGlobalScan?: (event: ScanEvent) => void;
+  mode?: ScannerMode;
   enabled?: boolean;
   scanDebounceMs?: number;
 }
@@ -26,15 +29,17 @@ interface UseHybridScannerResult {
 const CAMERA_ELEMENT_ID = 'hybrid-scanner-camera';
 
 export function useHybridScanner({
-  onScan,
+  onGlobalScan,
+  mode = 'search',
   enabled = true,
   scanDebounceMs = 500,
-}: UseHybridScannerOptions): UseHybridScannerResult {
+}: UseHybridScannerOptions = {}): UseHybridScannerResult {
   const [lastScan, setLastScan] = useState<ScanEvent | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
-  const onScanRef = useRef(onScan);
+  const onGlobalScanRef = useRef(onGlobalScan);
+  const modeRef = useRef(mode);
   const debounceRef = useRef(scanDebounceMs);
   const enabledRef = useRef(enabled);
   const lastScanTimeRef = useRef(0);
@@ -42,7 +47,8 @@ export function useHybridScanner({
   const lastKeyTimeRef = useRef(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  onScanRef.current = onScan;
+  onGlobalScanRef.current = onGlobalScan;
+  modeRef.current = mode;
   debounceRef.current = scanDebounceMs;
   enabledRef.current = enabled;
 
@@ -54,14 +60,33 @@ export function useHybridScanner({
     lastScanTimeRef.current = now;
     const event: ScanEvent = { barcode, source, timestamp: now };
     setLastScan(event);
-    onScanRef.current(event);
+
+    if (modeRef.current === 'form') {
+      const el = document.activeElement;
+      if (el && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+        el.value = barcode;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return;
+      }
+    }
+
+    if (modeRef.current === 'search' && onGlobalScanRef.current) {
+      onGlobalScanRef.current(event);
+    }
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!enabledRef.current) return;
 
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName ?? '')) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName ?? '')) {
+        if (modeRef.current === 'form') {
+          // allow keyboard passthrough in form mode — hardware scanner still intercepted below
+        } else {
+          return;
+        }
+      }
 
       const now = Date.now();
       const interval = now - lastKeyTimeRef.current;

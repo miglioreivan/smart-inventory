@@ -92,6 +92,46 @@ export async function getSheetData(spreadsheetId: string, range: string): Promis
   return batchGet({ spreadsheetId, ranges: [range] });
 }
 
+export async function appendSheetRow(
+  spreadsheetId: string,
+  sheetName: string,
+  values: (string | number | boolean)[],
+): Promise<{ updatedRange: string; updatedRows: number }> {
+  enforceRateLimit();
+
+  const token = getGoogleAccessToken();
+  if (!token) throw new Error('Not authenticated: missing Google OAuth access token');
+
+  const range = `${encodeURIComponent(sheetName)}!A1`;
+  const url = `${SHEETS_API_BASE}/${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      values: [values.map((v) => String(v))],
+    }),
+  });
+
+  if (!response.ok) {
+    const error: GoogleSheetsError = await response.json().catch(() => ({
+      code: response.status,
+      message: response.statusText,
+      status: response.statusText,
+    }));
+    throw new SheetsApiError(error);
+  }
+
+  const data = await response.json();
+  return {
+    updatedRange: data.updates?.updatedRange ?? '',
+    updatedRows: data.updates?.updatedRows ?? 0,
+  };
+}
+
 export async function updateSheetData(spreadsheetId: string, range: string, values: (string | number | boolean)[][]): Promise<BatchUpdateResponse> {
   const strValues = values.map((row) => row.map((cell) => String(cell)));
   return batchUpdate({

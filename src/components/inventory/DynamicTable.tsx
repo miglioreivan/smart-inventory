@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { ColumnMeta } from '../../types/schema.types';
 import { CellRenderer } from '../columns/CellRenderer';
 import { COLUMN_DEFAULT_WIDTHS, PAGINATION_DEFAULT_SIZE } from '../../config/constants';
@@ -11,15 +11,23 @@ interface DynamicTableProps {
   onRowClick: (rowIndex: number) => void;
   selectedRows?: Set<number>;
   onToggleSelection?: (rowIndex: number) => void;
+  externalSearch?: string;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
 
-export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows, onToggleSelection }: DynamicTableProps) {
+export function DynamicTable({ columns, rows, loading, onRowClick, selectedRows, onToggleSelection, externalSearch }: DynamicTableProps) {
   const [sortKey, setSortKey] = useState<number | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    if (externalSearch !== undefined && externalSearch !== search) {
+      setSearch(externalSearch);
+      setPage(0);
+    }
+  }, [externalSearch]);
 
   const headerRow = rows[0] ?? [];
 

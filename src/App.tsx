@@ -1,17 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { InventoryView } from './components/inventory/InventoryView';
 import { SmartBoxView } from './components/scanner/SmartBoxView';
+import { BoxGenerator } from './components/scanner/BoxGenerator';
 import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
 import { useSpreadsheet } from './hooks/useSpreadsheet';
-import { PackageSearch, Table2, Boxes, LogOut } from 'lucide-react';
+import { useHybridScanner } from './hooks/useHybridScanner';
+import type { ScannerMode } from './hooks/useHybridScanner';
+import type { ScanEvent } from './types/inventory.types';
+import { PackageSearch, Table2, Boxes, QrCode, LogOut } from 'lucide-react';
 
-type ViewKey = 'inventory' | 'smartbox';
+type ViewKey = 'inventory' | 'smartbox' | 'boxgen';
 
 export default function App() {
   const { user, loading, error, signIn, signOut } = useGoogleAuth();
   const [view, setView] = useState<ViewKey>('inventory');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [globalSearch, setGlobalSearch] = useState('');
+  const [formModalOpen, setFormModalOpen] = useState(false);
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
 
@@ -26,6 +32,18 @@ export default function App() {
   const nameColIndex = useMemo(() => {
     return spreadsheet.columns.findIndex((c) => c.label.toLowerCase().includes('name') || c.label.toLowerCase().includes('product'));
   }, [spreadsheet.columns]);
+
+  const handleGlobalScan = useCallback((event: ScanEvent) => {
+    setGlobalSearch(event.barcode);
+  }, []);
+
+  const activeMode: ScannerMode = formModalOpen ? 'form' : 'search';
+
+  useHybridScanner({
+    onGlobalScan: handleGlobalScan,
+    mode: activeMode,
+    enabled: true,
+  });
 
   if (loading) {
     return (
@@ -101,6 +119,17 @@ export default function App() {
             <Boxes size={16} />
             Smart Boxes
           </button>
+          <button
+            onClick={() => setView('boxgen')}
+            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              view === 'boxgen'
+                ? 'bg-slate-800 text-slate-100'
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+            }`}
+          >
+            <QrCode size={16} />
+            Box & Labels
+          </button>
         </nav>
 
         <div className="px-2 py-3 border-t border-slate-800">
@@ -118,7 +147,13 @@ export default function App() {
       </aside>
 
       <main className="flex-1 p-6 overflow-auto">
-        {view === 'inventory' && <InventoryView spreadsheetId={selectedId} />}
+        {view === 'inventory' && (
+          <InventoryView
+            spreadsheetId={selectedId}
+            globalSearch={globalSearch}
+            onFormModalChange={setFormModalOpen}
+          />
+        )}
         {view === 'smartbox' && (
           <SmartBoxView
             data={spreadsheet.inventory.data ?? []}
@@ -130,6 +165,7 @@ export default function App() {
             onClose={() => setView('inventory')}
           />
         )}
+        {view === 'boxgen' && <BoxGenerator />}
       </main>
     </div>
   );
