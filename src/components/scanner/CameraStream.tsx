@@ -38,12 +38,19 @@ export function CameraStream({ active, onScan, onError, cameraMode = 'environmen
 
   useEffect(() => {
     if (!active) {
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().then(() => {
-          scannerRef.current?.clear();
-        }).catch((err) => console.warn(LOG_PREFIX, 'Cleanup stop error', err));
-      } else {
-        scannerRef.current?.clear();
+      try {
+        if (scannerRef.current?.isScanning) {
+          const p = scannerRef.current.stop();
+          if (p && p.then) {
+            p.then(() => {
+              try { scannerRef.current?.clear(); } catch (e) {}
+            }).catch(() => {});
+          }
+        } else {
+          try { scannerRef.current?.clear(); } catch (e) {}
+        }
+      } catch (err) {
+        console.warn(LOG_PREFIX, 'Ignored sync stop error', err);
       }
       scannerRef.current = null;
       if (isMounted.current) setStatus('loading');
@@ -99,10 +106,19 @@ export function CameraStream({ active, onScan, onError, cameraMode = 'environmen
 
     return () => {
       cancelled = true;
-      if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().then(() => {
-          scannerRef.current?.clear();
-        }).catch((err) => console.warn(LOG_PREFIX, 'Unmount stop error', err));
+      try {
+        if (scannerRef.current?.isScanning) {
+          const p = scannerRef.current.stop();
+          if (p && p.then) {
+            p.then(() => {
+              try { scannerRef.current?.clear(); } catch (e) {}
+            }).catch(() => {});
+          }
+        } else {
+          try { scannerRef.current?.clear(); } catch (e) {}
+        }
+      } catch (err) {
+        console.warn(LOG_PREFIX, 'Ignored unmount stop error', err);
       }
     };
   }, [active, cameraMode]);
