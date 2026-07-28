@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, signInWithGoogle, signOutUser, getGoogleAccessToken, handleRedirectResult } from '../config/firebase';
+import { auth, signInWithGoogle, signOutUser, getGoogleAccessToken } from '../config/firebase';
 
 interface AuthState {
   user: User | null;
@@ -23,16 +23,6 @@ export function useGoogleAuth(): AuthState & {
 
   useEffect(() => {
     let cancelled = false;
-
-    const init = async () => {
-      try {
-        const token = await handleRedirectResult();
-        if (token && !cancelled) {
-          setState((prev) => ({ ...prev, accessToken: token }));
-        }
-      } catch {}
-    };
-    init();
 
     const unsubscribe = onAuthStateChanged(
       auth,
@@ -65,6 +55,8 @@ export function useGoogleAuth(): AuthState & {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       await signInWithGoogle();
+      const token = getGoogleAccessToken();
+      setState((prev) => ({ ...prev, loading: false, accessToken: token }));
     } catch (err) {
       setState((prev) => ({ ...prev, loading: false, error: err as Error, accessToken: null }));
     }

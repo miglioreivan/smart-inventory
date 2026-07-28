@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithRedirect, signOut, getRedirectResult } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { GOOGLE_API_SCOPES } from './googleScopes';
 
 const firebaseConfig = {
@@ -24,27 +24,11 @@ export async function signInWithGoogle(): Promise<void> {
     provider.addScope(scope);
   }
   provider.setCustomParameters({ prompt: 'select_account' });
-  await signInWithRedirect(auth, provider);
-}
 
-export async function handleRedirectResult(): Promise<string | null> {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result) {
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken ?? null;
-      if (token) {
-        localStorage.setItem(TOKEN_KEY, token);
-      }
-      return token;
-    }
-    return null;
-  } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-      return null;
-    }
-    throw err;
+  const result = await signInWithPopup(auth, provider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  if (credential?.accessToken) {
+    localStorage.setItem(TOKEN_KEY, credential.accessToken);
   }
 }
 
