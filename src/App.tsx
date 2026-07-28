@@ -2,15 +2,15 @@ import { useState, useMemo, useCallback } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { InventoryView } from './components/inventory/InventoryView';
 import { SmartBoxView } from './components/scanner/SmartBoxView';
-import { BoxGenerator } from './components/scanner/BoxGenerator';
+import { LocationManager } from './components/scanner/LocationManager';
 import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
 import { useSpreadsheet } from './hooks/useSpreadsheet';
 import { useHybridScanner } from './hooks/useHybridScanner';
 import type { ScannerMode } from './hooks/useHybridScanner';
 import type { ScanEvent } from './types/inventory.types';
-import { PackageSearch, Table2, Search, LogOut } from 'lucide-react';
+import { PackageSearch, Table2, Search, MapPin, LogOut } from 'lucide-react';
 
-type ViewKey = 'inventory' | 'search';
+type ViewKey = 'inventory' | 'search' | 'locations';
 
 export default function App() {
   const { user, loading, error, signIn, signOut } = useGoogleAuth();
@@ -18,7 +18,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const [searchTab, setSearchTab] = useState<'smartbox' | 'labels'>('smartbox');
+  const [searchTab, setSearchTab] = useState<'smartbox' | 'locations'>('smartbox');
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
 
@@ -130,6 +130,17 @@ export default function App() {
             <Search size={16} />
             Search & Boxes
           </button>
+          <button
+            onClick={() => setView('locations')}
+            className={`w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              view === 'locations'
+                ? 'bg-slate-800 text-slate-100'
+                : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+            }`}
+          >
+            <MapPin size={16} />
+            Locations & Boxes
+          </button>
         </nav>
 
         <div className="px-2 py-3 border-t border-slate-800">
@@ -167,9 +178,9 @@ export default function App() {
                 Scanner & Boxes
               </button>
               <button
-                onClick={() => setSearchTab('labels')}
+                onClick={() => setSearchTab('locations')}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  searchTab === 'labels' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                  searchTab === 'locations' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Box Labels
@@ -187,9 +198,10 @@ export default function App() {
                 onClose={() => setView('inventory')}
               />
             )}
-            {searchTab === 'labels' && <BoxGenerator />}
+            {searchTab === 'locations' && <LocationManager />}
           </div>
         )}
+        {view === 'locations' && <LocationManager />}
       </main>
     </div>
   );

@@ -7,6 +7,7 @@ import { AddTabModal } from './AddTabModal';
 import { TabBar } from './TabBar';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { BarcodePrinter } from '../scanner/BarcodePrinter';
+import { getGlobalLocationCodes } from '../scanner/LocationManager';
 import { Loader2, Sheet, Printer, EyeOff, Plus, Trash2 } from 'lucide-react';
 
 interface InventoryViewProps {
@@ -25,6 +26,8 @@ export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange, 
   const [showAddTab, setShowAddTab] = useState(false);
   const [deleteTabTarget, setDeleteTabTarget] = useState<string | null>(null);
   const [showDeleteWorkbook, setShowDeleteWorkbook] = useState(false);
+
+  const globalLocations = useMemo(() => getGlobalLocationCodes(), []);
 
   const handleRowClick = useCallback((rowIndex: number) => {
     setDetailRowIndex(rowIndex);
@@ -186,6 +189,7 @@ export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange, 
           onSave={handleSave}
           saving={spreadsheet.isSaving}
           readOnly={spreadsheet.isReadOnly}
+          globalLocations={globalLocations}
         />
       )}
 
@@ -197,6 +201,7 @@ export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange, 
           sheetName={spreadsheet.activeSheetName ?? 'Sheet1'}
           columns={spreadsheet.columns}
           onSuccess={() => spreadsheet.invalidateAll()}
+          globalLocations={globalLocations}
         />
       )}
 

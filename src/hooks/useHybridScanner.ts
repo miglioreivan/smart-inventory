@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import type { ScanEvent } from '../types/inventory.types';
 import {
   HARDWARE_SCAN_THRESHOLD_MS,
@@ -27,6 +27,25 @@ interface UseHybridScannerResult {
 }
 
 const CAMERA_ELEMENT_ID = 'hybrid-scanner-camera';
+
+const SUPPORTED_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.CODABAR,
+];
+
+const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  facingMode: 'environment',
+  width: { min: 1280, ideal: 1920 },
+  height: { min: 720, ideal: 1080 },
+};
 
 export function useHybridScanner({
   onGlobalScan,
@@ -136,11 +155,12 @@ export function useHybridScanner({
       scannerRef.current = new Html5Qrcode(CAMERA_ELEMENT_ID);
 
       await scannerRef.current.start(
-        { facingMode: 'environment' },
+        VIDEO_CONSTRAINTS,
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1,
+          formatsToSupport: SUPPORTED_FORMATS,
         },
         (decodedText) => {
           if (isMounted.current) emitScan(decodedText, 'camera');

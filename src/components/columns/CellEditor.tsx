@@ -8,14 +8,15 @@ interface CellEditorProps {
   onSave: (value: string) => void;
   onCancel: () => void;
   autoFocus?: boolean;
+  globalLocations?: string[];
 }
 
-export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = true }: CellEditorProps) {
+export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = true, globalLocations }: CellEditorProps) {
   const [value, setValue] = useState(initialValue);
   const [error, setError] = useState<string | null>(null);
 
-  const commit = useCallback(() => {
-    const trimmed = value.trim();
+  const commit = useCallback((val?: string) => {
+    const trimmed = (val ?? value).trim();
 
     if (meta.required && trimmed === '') {
       setError(`"${meta.label}" is required`);
@@ -88,6 +89,44 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
 
   const baseInputClass = 'w-full rounded-md border border-slate-600 bg-slate-800 px-2.5 py-1.5 text-sm text-slate-100 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500';
 
+  if (meta.type === 'Location' && globalLocations && globalLocations.length > 0) {
+    return (
+      <div className="flex flex-col gap-1">
+        <select
+          autoFocus={autoFocus}
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+            commit(e.target.value);
+          }}
+          onKeyDown={handleKeyDown}
+          className={baseInputClass}
+        >
+          <option value="">— Select Location —</option>
+          {globalLocations.map((loc) => (
+            <option key={loc} value={loc}>{loc}</option>
+          ))}
+          <option value={value} disabled className="text-slate-600">
+            ——
+          </option>
+          <option value={value}>
+            {value || 'Custom (type below)'}
+          </option>
+        </select>
+        <input
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          onBlur={() => commit()}
+          placeholder="Or type a custom location..."
+          className={baseInputClass}
+        />
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </div>
+    );
+  }
+
   switch (meta.type) {
     case 'Text':
     case 'Number':
@@ -107,7 +146,7 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onBlur={commit}
+            onBlur={() => commit()}
             placeholder={`Enter ${meta.label.toLowerCase()}`}
             className={baseInputClass}
           />
@@ -124,7 +163,7 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onBlur={commit}
+              onBlur={() => commit()}
               className={baseInputClass}
             >
               <option value="">— Select —</option>
@@ -138,7 +177,7 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
               value={value}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              onBlur={commit}
+              onBlur={() => commit()}
               className={baseInputClass}
             />
           )}
@@ -173,7 +212,7 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
             value={value}
             onChange={handleChange}
             onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
-            onBlur={commit}
+            onBlur={() => commit()}
             rows={2}
             placeholder='["drive_id_1","drive_id_2"]'
             className={baseInputClass + ' resize-none font-mono text-xs'}
@@ -190,7 +229,7 @@ export function CellEditor({ meta, initialValue, onSave, onCancel, autoFocus = t
             value={value}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            onBlur={commit}
+            onBlur={() => commit()}
             className={baseInputClass}
           />
           {error && <span className="text-xs text-red-400">{error}</span>}

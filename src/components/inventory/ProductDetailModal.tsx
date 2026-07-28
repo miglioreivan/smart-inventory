@@ -14,6 +14,7 @@ interface ProductDetailModalProps {
   onSave: (rowIndex: number, updates: { colIndex: number; value: string }[]) => void;
   saving: boolean;
   readOnly?: boolean;
+  globalLocations?: string[];
 }
 
 export function ProductDetailModal({
@@ -25,6 +26,7 @@ export function ProductDetailModal({
   onSave,
   saving,
   readOnly = false,
+  globalLocations,
 }: ProductDetailModalProps) {
   const [editingField, setEditingField] = useState<number | null>(null);
   const [localValues, setLocalValues] = useState<Record<number, string>>({});
@@ -110,6 +112,7 @@ export function ProductDetailModal({
                       initialValue={localValues[ci] ?? rawValue}
                       onSave={(val) => handleFieldSave(ci, val)}
                       onCancel={handleCancelEdit}
+                      globalLocations={globalLocations}
                     />
                   ) : (
                     <div

@@ -12,9 +12,10 @@ interface AddProductModalProps {
   sheetName: string;
   columns: ColumnMeta[];
   onSuccess: () => void;
+  globalLocations?: string[];
 }
 
-export function AddProductModal({ open, onClose, spreadsheetId, sheetName, columns, onSuccess }: AddProductModalProps) {
+export function AddProductModal({ open, onClose, spreadsheetId, sheetName, columns, onSuccess, globalLocations }: AddProductModalProps) {
   const [values, setValues] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export function AddProductModal({ open, onClose, spreadsheetId, sheetName, colum
                   onSave={(val) => handleFieldChange(ci, val)}
                   onCancel={() => {}}
                   autoFocus={ci === 0}
+                  globalLocations={globalLocations}
                 />
               </div>
             </div>
