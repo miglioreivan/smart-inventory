@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
-import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
 import { useSpreadsheet } from './hooks/useSpreadsheet';
 import { useHybridScanner } from './hooks/useHybridScanner';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import type { ScannerMode } from './hooks/useHybridScanner';
 import type { ScanEvent } from './types/inventory.types';
 import { PackageSearch, Table2, Search, MapPin, LogOut, Menu, X, Loader2 } from 'lucide-react';
+import { useSpreadsheetsList } from './hooks/useSpreadsheet';
 
 const InventoryView = lazy(() => import('./components/inventory/InventoryView').then((m) => ({ default: m.InventoryView })));
 const UnifiedSearch = lazy(() => import('./components/scanner/UnifiedSearch').then((m) => ({ default: m.UnifiedSearch })));
@@ -31,8 +31,10 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
+  const { data: files } = useSpreadsheetsList();
 
   const handleGlobalScan = useCallback((event: ScanEvent) => {
+    console.info('%c[SMART-INVENTORY]', 'color: #60a5fa', `global scan | barcode="${event.barcode}" | source=${event.source}`);
     setGlobalSearch(event.barcode);
   }, []);
 
@@ -57,11 +59,20 @@ export default function App() {
 
   const handleDeleteWorkbook = useCallback(async () => {
     if (!selectedId) return;
+    console.info('%c[SMART-INVENTORY]', 'color: #fbbf24', `deleting workbook | id=${selectedId}`);
     try {
       await spreadsheet.deleteWorkbook.mutateAsync();
       setSelectedId(null);
-    } catch {}
+      console.info('%c[SMART-INVENTORY]', 'color: #34d399', `workbook deleted | id=${selectedId}`);
+    } catch (err) {
+      console.error('%c[SMART-INVENTORY]', 'color: #f87171', 'delete workbook failed', err);
+    }
   }, [selectedId, spreadsheet]);
+
+  const handleSelectSheet = useCallback((id: string) => {
+    console.info('%c[SMART-INVENTORY]', 'color: #60a5fa', `sheet selected | id=${id} | name=${files?.find((f: { id: string }) => f.id === id)?.name ?? 'unknown'}`);
+    setSelectedId(id);
+  }, [files]);
 
   const NavItems = ({ onClick }: { onClick?: () => void }) => (
     <>
@@ -139,10 +150,6 @@ export default function App() {
           <NavItems />
         </nav>
 
-        <div className="px-2 py-3 border-t border-slate-800">
-          <SpreadsheetSelector selectedId={selectedId} onSelect={setSelectedId} />
-        </div>
-
         <div className="px-4 py-3 border-t border-slate-800">
           <div className="flex items-center gap-2">
             <span className="min-w-0 flex-1 truncate text-xs text-slate-500">{user.email}</span>
@@ -166,9 +173,6 @@ export default function App() {
             <nav className="flex-1 px-2 py-3 space-y-1">
               <NavItems onClick={() => setSidebarOpen(false)} />
             </nav>
-            <div className="px-2 py-3 border-t border-slate-800">
-              <SpreadsheetSelector selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setSidebarOpen(false); }} />
-            </div>
             <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
               <span className="truncate text-xs text-slate-500 mr-2">{user.email}</span>
               <button onClick={signOut} className="rounded p-1 text-slate-500 hover:text-slate-300 hover:bg-slate-800">
@@ -194,6 +198,7 @@ export default function App() {
               <Suspense fallback={<ViewLoader />}>
                 <InventoryView
                   spreadsheetId={selectedId}
+                  onSelectSheet={handleSelectSheet}
                   globalSearch={globalSearch}
                   onFormModalChange={setFormModalOpen}
                   onDeleteWorkbook={handleDeleteWorkbook}

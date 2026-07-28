@@ -3,8 +3,8 @@ import { useHybridScanner } from '../../hooks/useHybridScanner';
 import type { ScanEvent } from '../../types/inventory.types';
 import { getGlobalLocationCodes } from './LocationManager';
 import {
-  Search, Scan, Camera, Keyboard, X, Check, MapPin, Hash, ChevronRight,
-  Package, QrCode, Repeat,
+  Search, Camera, Keyboard, X, Check, MapPin, Hash, ChevronRight,
+  Package, Repeat,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 import { CameraStream } from './CameraStream';

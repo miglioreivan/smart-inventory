@@ -7,17 +7,19 @@ import { AddTabModal } from './AddTabModal';
 import { TabBar } from './TabBar';
 import { ConfirmDialog } from '../common/ConfirmDialog';
 import { BarcodePrinter } from '../scanner/BarcodePrinter';
+import { SpreadsheetSelector } from './SpreadsheetSelector';
 import { getGlobalLocationCodes } from '../scanner/LocationManager';
 import { Loader2, Sheet, Printer, EyeOff, Plus, Trash2 } from 'lucide-react';
 
 interface InventoryViewProps {
   spreadsheetId: string | null;
+  onSelectSheet: (id: string) => void;
   globalSearch?: string;
   onFormModalChange?: (open: boolean) => void;
   onDeleteWorkbook?: () => void;
 }
 
-export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange, onDeleteWorkbook }: InventoryViewProps) {
+export function InventoryView({ spreadsheetId, onSelectSheet, globalSearch, onFormModalChange, onDeleteWorkbook }: InventoryViewProps) {
   const spreadsheet = useSpreadsheet(spreadsheetId ?? '');
   const [detailRowIndex, setDetailRowIndex] = useState<number | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
@@ -85,10 +87,13 @@ export function InventoryView({ spreadsheetId, globalSearch, onFormModalChange, 
 
   if (!spreadsheetId) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-500">
-        <Sheet size={40} className="text-slate-700" />
-        <p className="text-sm">Select a spreadsheet from the sidebar</p>
-        <p className="text-xs text-slate-600">Or create a new one to get started</p>
+      <div className="mx-auto max-w-md py-8 sm:py-12">
+        <div className="flex flex-col items-center gap-2 mb-6 text-center">
+          <Sheet size={36} className="text-slate-600" />
+          <h2 className="text-base font-semibold text-slate-200">Your Inventories</h2>
+          <p className="text-xs text-slate-500">Select or create a spreadsheet to start managing inventory</p>
+        </div>
+        <SpreadsheetSelector selectedId={null} onSelect={onSelectSheet} />
       </div>
     );
   }

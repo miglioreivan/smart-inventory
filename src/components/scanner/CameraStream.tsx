@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Camera, CameraOff, AlertTriangle } from 'lucide-react';
+
+const LOG_PREFIX = '[CAMERA-STREAM]';
 
 interface CameraStreamProps {
   active: boolean;
@@ -9,6 +11,16 @@ interface CameraStreamProps {
 }
 
 const VIEWPORT_ID = 'camera-stream-viewport';
+
+const SUPPORTED_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+];
 
 export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
   const [status, setStatus] = useState<'loading' | 'active' | 'error'>('loading');
@@ -32,9 +44,15 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
       try {
         if (scannerRef.current?.isScanning) {
           scannerRef.current.stop().catch(() => {});
+          console.info(LOG_PREFIX, 'stream stopped');
         }
       } catch {
         // ignore cleanup errors
+      }
+      try {
+        scannerRef.current?.clear();
+      } catch {
+        // ignore clear errors
       }
       scannerRef.current = null;
       if (isMounted.current) setStatus('loading');
@@ -45,35 +63,43 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
 
     const start = async () => {
       const el = document.getElementById(VIEWPORT_ID);
-      if (!el) return;
+      if (!el) {
+        console.warn(LOG_PREFIX, `viewport element "#${VIEWPORT_ID}" not found`);
+        return;
+      }
 
       try {
+        console.info(LOG_PREFIX, 'initializing scanner with', SUPPORTED_FORMATS.length, 'format(s)');
+
         scannerRef.current = new Html5Qrcode(VIEWPORT_ID);
 
-        const cameras = await Html5Qrcode.getCameras();
-        if (cameras.length === 0) {
-          throw new Error('No cameras found');
-        }
-
-        const backCamera = cameras.find(
-          (c) => c.id.toLowerCase().includes('back') || c.id.toLowerCase().includes('environment'),
-        ) ?? cameras[0];
+        console.info(LOG_PREFIX, 'starting camera with facingMode: "environment"');
 
         await scannerRef.current.start(
-          backCamera.id,
+          { facingMode: 'environment' },
           {
             fps: 10,
-            qrbox: { width: 220, height: 220 },
+            qrbox: { width: 250, height: 250 },
             aspectRatio: 1,
+            formatsToSupport: SUPPORTED_FORMATS,
           },
           (decodedText) => {
-            if (!cancelled && isMounted.current) onScanRef.current(decodedText);
+            if (!cancelled && isMounted.current) {
+              console.info(LOG_PREFIX, `scanned successfully: "${decodedText}"`);
+              onScanRef.current(decodedText);
+            }
           },
-          () => {},
+          () => {
+            // suppress noisy frame-by-frame scan misses
+          },
         );
 
-        if (!cancelled && isMounted.current) setStatus('active');
+        if (!cancelled && isMounted.current) {
+          console.info(LOG_PREFIX, 'camera started successfully');
+          setStatus('active');
+        }
       } catch (err) {
+        console.error(LOG_PREFIX, 'camera start failed', err);
         if (!cancelled && isMounted.current) {
           setStatus('error');
           onErrorRef.current(err instanceof Error ? err.message : 'Camera error');
@@ -88,16 +114,22 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
       try {
         if (scannerRef.current?.isScanning) {
           scannerRef.current.stop().catch(() => {});
+          console.info(LOG_PREFIX, 'cleanup: stream stopped');
         }
       } catch {
         // ignore cleanup errors
+      }
+      try {
+        scannerRef.current?.clear();
+      } catch {
+        // ignore clear errors
       }
     };
   }, [active]);
 
   if (!active) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 p-8">
+      <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 p-4 sm:p-8">
         <CameraOff size={24} className="text-slate-600" />
         <p className="text-xs text-slate-500">Camera inactive</p>
       </div>
