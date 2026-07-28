@@ -44,6 +44,15 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.CODABAR,
 ];
 
+const REAR_CAMERA_KEYWORDS = ['back', 'rear', 'environment', 'posteriore', 'facing back', 'facing rear'];
+
+function isRearCamera(label: string): boolean {
+  const lower = label.toLowerCase();
+  return REAR_CAMERA_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+const FLIP_DEBOUNCE_MS = 600;
+
 export function useHybridScanner({
   onGlobalScan,
   mode = 'search',
@@ -66,6 +75,9 @@ export function useHybridScanner({
   const lastKeyTimeRef = useRef(0);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const cameraIndexRef = useRef(0);
+  const cameraLabelsRef = useRef<string[]>([]);
+  const lastFlipRef = useRef(0);
+  const flippingRef = useRef(false);
 
   onGlobalScanRef.current = onGlobalScan;
   modeRef.current = mode;
@@ -104,7 +116,6 @@ export function useHybridScanner({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!enabledRef.current || !isMounted.current) return;
-
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName ?? '')) {
         if (modeRef.current !== 'form') return;
       }
@@ -142,8 +153,16 @@ export function useHybridScanner({
   }, [emitScan]);
 
   const doStartCamera = useCallback(async (cameraId: string) => {
-    if (scannerRef.current?.isScanning) {
-      try { await scannerRef.current.stop(); } catch {}
+    if (!isMounted.current) return;
+
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+      } catch {}
+      scannerRef.current.clear();
+      scannerRef.current = null;
     }
 
     const existing = document.getElementById(CAMERA_ELEMENT_ID);
@@ -172,23 +191,28 @@ export function useHybridScanner({
       () => {},
     );
 
-    safeSetState(setIsCameraActive, true);
-    safeSetState(setActiveCameraId, cameraId);
+    if (isMounted.current) {
+      safeSetState(setIsCameraActive, true);
+      safeSetState(setActiveCameraId, cameraId);
+    }
   }, [emitScan, safeSetState]);
 
   const startCamera = useCallback(async () => {
     safeSetState(setCameraError, null);
     try {
-      const cameras = await Html5Qrcode.getCameras();
-      const ids = cameras.map((c) => c.id);
-      if (ids.length === 0) throw new Error('No cameras found');
-      safeSetState(setAvailableCameras, ids);
+      const devices = await Html5Qrcode.getCameras();
+      if (devices.length === 0) throw new Error('No cameras found');
 
-      const backIdx = ids.findIndex((id) =>
-        id.toLowerCase().includes('back') || id.toLowerCase().includes('environment'),
-      );
-      cameraIndexRef.current = backIdx >= 0 ? backIdx : 0;
-      await doStartCamera(ids[cameraIndexRef.current]);
+      const ids = devices.map((d) => d.id);
+      const labels = devices.map((d) => d.label);
+      safeSetState(setAvailableCameras, ids);
+      cameraLabelsRef.current = labels;
+
+      let rearIdx = labels.findIndex((l) => isRearCamera(l));
+      if (rearIdx < 0) rearIdx = ids.length - 1;
+      cameraIndexRef.current = rearIdx;
+
+      await doStartCamera(ids[rearIdx]);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Camera access denied or unavailable';
       safeSetState(setCameraError, message);
@@ -197,19 +221,34 @@ export function useHybridScanner({
   }, [doStartCamera, safeSetState]);
 
   const flipCamera = useCallback(async () => {
+    const now = Date.now();
+    if (flippingRef.current || now - lastFlipRef.current < FLIP_DEBOUNCE_MS) return;
     if (availableCameras.length < 2) return;
-    cameraIndexRef.current = (cameraIndexRef.current + 1) % availableCameras.length;
+
+    flippingRef.current = true;
+    lastFlipRef.current = now;
+
     try {
+      cameraIndexRef.current = (cameraIndexRef.current + 1) % availableCameras.length;
       await doStartCamera(availableCameras[cameraIndexRef.current]);
     } catch {
-      // fall back to first camera
+      // fallback: try previous index
+      try {
+        cameraIndexRef.current = (cameraIndexRef.current - 1 + availableCameras.length) % availableCameras.length;
+        await doStartCamera(availableCameras[cameraIndexRef.current]);
+      } catch {}
+    } finally {
+      flippingRef.current = false;
     }
   }, [availableCameras, doStartCamera]);
 
   const stopCamera = useCallback(async () => {
     try {
-      if (scannerRef.current?.isScanning) {
-        await scannerRef.current.stop();
+      if (scannerRef.current) {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
       }
     } catch {}
     scannerRef.current = null;
@@ -228,8 +267,11 @@ export function useHybridScanner({
     return () => {
       isMounted.current = false;
       try {
-        if (scannerRef.current?.isScanning) {
-          scannerRef.current.stop().catch(() => {});
+        if (scannerRef.current) {
+          if (scannerRef.current.isScanning) {
+            scannerRef.current.stop().catch(() => {});
+          }
+          scannerRef.current.clear();
         }
       } catch {}
       scannerRef.current = null;

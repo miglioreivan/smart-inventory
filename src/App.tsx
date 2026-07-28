@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { InventoryView } from './components/inventory/InventoryView';
-import { SmartBoxView } from './components/scanner/SmartBoxView';
+import { UnifiedSearch } from './components/scanner/UnifiedSearch';
 import { LocationManager } from './components/scanner/LocationManager';
 import { SpreadsheetSelector } from './components/inventory/SpreadsheetSelector';
 import { useSpreadsheet } from './hooks/useSpreadsheet';
@@ -18,22 +18,9 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [formModalOpen, setFormModalOpen] = useState(false);
-  const [searchTab, setSearchTab] = useState<'smartbox' | 'locations'>('smartbox');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const spreadsheet = useSpreadsheet(selectedId ?? '');
-
-  const barcodeColIndex = useMemo(() => {
-    return spreadsheet.columns.findIndex((c) => c.type === 'Barcode' || c.type === 'QRCode');
-  }, [spreadsheet.columns]);
-
-  const locationColIndex = useMemo(() => {
-    return spreadsheet.columns.findIndex((c) => c.type === 'Location' || c.label.toLowerCase().includes('location'));
-  }, [spreadsheet.columns]);
-
-  const nameColIndex = useMemo(() => {
-    return spreadsheet.columns.findIndex((c) => c.label.toLowerCase().includes('name') || c.label.toLowerCase().includes('product'));
-  }, [spreadsheet.columns]);
 
   const handleGlobalScan = useCallback((event: ScanEvent) => {
     setGlobalSearch(event.barcode);
@@ -74,19 +61,7 @@ export default function App() {
     );
   }
 
-  const handleScanProductToBox = (productBarcode: string, boxBarcode: string) => {
-    const rows = spreadsheet.inventory.data ?? [];
-    const rowIndex = rows.findIndex(
-      (row) => row[barcodeColIndex]?.toString().trim() === productBarcode,
-    );
-    if (rowIndex >= 0 && locationColIndex >= 0) {
-      const existingLocation = rows[rowIndex][locationColIndex]?.toString() ?? '';
-      const newLocation = boxBarcode
-        ? `${existingLocation ? existingLocation + ' > ' : ''}BOX-${boxBarcode.slice(-6)}`
-        : existingLocation;
-      spreadsheet.updateCell(rowIndex, locationColIndex, newLocation);
-    }
-  };
+  }
 
   const handleDeleteWorkbook = async () => {
     if (!selectedId) return;
@@ -95,6 +70,17 @@ export default function App() {
       setSelectedId(null);
     } catch {}
   };
+
+  const allRows = useMemo(() => {
+    const tabs = spreadsheet.tabs.data ?? [];
+    return tabs
+      .filter((t: { title: string }) => t.title !== '_SYSTEM_SCHEMA')
+      .map((t: { title: string }) => ({
+        tabTitle: t.title,
+        rows: (spreadsheet.inventory.data ?? []),
+        columns: spreadsheet.columns,
+      }));
+  }, [spreadsheet.tabs.data, spreadsheet.inventory.data, spreadsheet.columns]);
 
   const NavItems = ({ onClick }: { onClick?: () => void }) => (
     <>
@@ -204,39 +190,7 @@ export default function App() {
             />
           )}
           {view === 'search' && (
-            <div className="flex flex-col h-full">
-              <div className="flex items-center gap-1 mb-3 sm:mb-4 rounded-lg bg-slate-800 p-0.5 w-fit">
-                <button
-                  onClick={() => setSearchTab('smartbox')}
-                  className={`rounded-md px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium transition-colors ${
-                    searchTab === 'smartbox' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Scanner & Boxes
-                </button>
-                <button
-                  onClick={() => setSearchTab('locations')}
-                  className={`rounded-md px-2.5 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium transition-colors ${
-                    searchTab === 'locations' ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Box Labels
-                </button>
-              </div>
-
-              {searchTab === 'smartbox' && (
-                <SmartBoxView
-                  data={spreadsheet.inventory.data ?? []}
-                  columns={spreadsheet.columns}
-                  barcodeColIndex={barcodeColIndex >= 0 ? barcodeColIndex : 0}
-                  locationColIndex={locationColIndex >= 0 ? locationColIndex : 0}
-                  nameColIndex={nameColIndex >= 0 ? nameColIndex : 0}
-                  onScanProductToBox={handleScanProductToBox}
-                  onClose={() => setView('inventory')}
-                />
-              )}
-              {searchTab === 'locations' && <LocationManager />}
-            </div>
+            <UnifiedSearch allRows={allRows} />
           )}
           {view === 'locations' && <LocationManager />}
         </main>
