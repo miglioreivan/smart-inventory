@@ -29,7 +29,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
     [mode, onProductScanned, onBoxScanned],
   );
 
-  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera } = useHybridScanner({
+  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera, activeCameraId } = useHybridScanner({
     onGlobalScan: handleScan,
     enabled: true,
   });
@@ -132,6 +132,7 @@ export function SmartBoxScanner({ onProductScanned, onBoxScanned, mode, onModeCh
         active={cameraActive}
         onScan={(barcode) => handleScan({ barcode, source: 'camera', timestamp: Date.now() })}
         onError={() => setCameraActive(false)}
+        cameraId={activeCameraId}
       />
 
       {cameraError && (

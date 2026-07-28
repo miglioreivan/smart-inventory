@@ -15,7 +15,7 @@ const auth = getAuth(app);
 const TOKEN_KEY = 'smart-inventory-google-token';
 
 export function getGoogleAccessToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export async function signInWithGoogle(): Promise<string | null> {
@@ -30,7 +30,7 @@ export async function signInWithGoogle(): Promise<string | null> {
     const credential = GoogleAuthProvider.credentialFromResult(result);
     const token = credential?.accessToken ?? null;
     if (token) {
-      sessionStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(TOKEN_KEY, token);
     }
     return token;
   } catch (err) {
@@ -43,7 +43,7 @@ export async function signInWithGoogle(): Promise<string | null> {
 }
 
 export async function signOutUser(): Promise<void> {
-  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY);
   await signOut(auth);
 }
 

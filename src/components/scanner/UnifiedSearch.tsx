@@ -36,7 +36,7 @@ export function UnifiedSearch({ allRows }: UnifiedSearchProps) {
     setCameraActive(false);
   }, []);
 
-  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera } = useHybridScanner({
+  const { lastScan, clearLastScan, cameraError, startCamera, stopCamera, availableCameras, flipCamera, activeCameraId } = useHybridScanner({
     onGlobalScan: handleGlobalScan,
     mode: 'search',
     enabled: true,
@@ -176,6 +176,7 @@ export function UnifiedSearch({ allRows }: UnifiedSearchProps) {
         active={cameraActive}
         onScan={(barcode) => handleGlobalScan({ barcode, source: 'camera', timestamp: Date.now() })}
         onError={() => setCameraActive(false)}
+        cameraId={activeCameraId}
       />
 
       {cameraError && <p className="text-xs text-red-400">{cameraError}</p>}

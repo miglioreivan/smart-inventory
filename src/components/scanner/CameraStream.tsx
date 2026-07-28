@@ -8,6 +8,7 @@ interface CameraStreamProps {
   active: boolean;
   onScan: (barcode: string) => void;
   onError: (error: string) => void;
+  cameraId?: string | null;
 }
 
 const VIEWPORT_ID = 'camera-stream-viewport';
@@ -22,7 +23,7 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.CODE_39,
 ];
 
-export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
+export function CameraStream({ active, onScan, onError, cameraId }: CameraStreamProps) {
   const [status, setStatus] = useState<'loading' | 'active' | 'error'>('loading');
   const isMounted = useRef(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
@@ -71,17 +72,21 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
       try {
         console.info(LOG_PREFIX, 'initializing scanner with', SUPPORTED_FORMATS.length, 'format(s)');
 
-        scannerRef.current = new Html5Qrcode(VIEWPORT_ID);
+        scannerRef.current = new Html5Qrcode(VIEWPORT_ID, {
+          formatsToSupport: SUPPORTED_FORMATS,
+          verbose: false,
+        });
 
-        console.info(LOG_PREFIX, 'starting camera with facingMode: "environment"');
+        const videoConstraints: MediaTrackConstraints = cameraId
+          ? { deviceId: { exact: cameraId } }
+          : { facingMode: 'environment' };
+        console.info(LOG_PREFIX, 'starting camera with', cameraId ? `deviceId: "${cameraId}"` : 'facingMode: "environment"');
 
         await scannerRef.current.start(
-          { facingMode: 'environment' },
+          videoConstraints,
           {
             fps: 10,
-            qrbox: { width: 250, height: 250 },
             aspectRatio: 1,
-            formatsToSupport: SUPPORTED_FORMATS,
           },
           (decodedText) => {
             if (!cancelled && isMounted.current) {
@@ -125,7 +130,7 @@ export function CameraStream({ active, onScan, onError }: CameraStreamProps) {
         // ignore clear errors
       }
     };
-  }, [active]);
+  }, [active, cameraId]);
 
   if (!active) {
     return (
