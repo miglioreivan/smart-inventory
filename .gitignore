@@ -1,0 +1,36 @@
+# Logs e Diagnostic
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dipendenze (FONDAMENTALE: non caricare mai online)
+node_modules/
+
+# Build Output e Cache di Vite
+dist/
+dist-ssr/
+*.local
+
+# Cache e file temporanei di Vercel
+.vercel/
+
+# Variabili d'Ambiente e Segreti (SICUREZZA ZERO-SECRET)
+.env
+.env.local
+.env.*.local
+*.env
+
+# File di sistema operativo e cache di editor (VS Code, JetBrains, Windows, macOS)
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
